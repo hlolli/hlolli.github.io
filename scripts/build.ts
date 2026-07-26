@@ -4,9 +4,9 @@ import { resolve } from "node:path";
 const projectRoot = resolve(import.meta.dir, "..");
 const outputRoot = resolve(projectRoot, "dist");
 
-async function copyTree(sourceName: string) {
+async function copyTree(sourceName: string, destinationName: string) {
   const sourceRoot = resolve(projectRoot, sourceName);
-  const destinationRoot = resolve(outputRoot, sourceName);
+  const destinationRoot = resolve(outputRoot, destinationName);
   const files = new Bun.Glob("**/*");
 
   for await (const relativePath of files.scan({
@@ -21,10 +21,10 @@ async function copyTree(sourceName: string) {
   }
 }
 
-async function copyFile(fileName: string) {
+async function copyFile(sourceName: string, destinationName: string) {
   await Bun.write(
-    resolve(outputRoot, fileName),
-    Bun.file(resolve(projectRoot, fileName)),
+    resolve(outputRoot, destinationName),
+    Bun.file(resolve(projectRoot, sourceName)),
   );
 }
 
@@ -45,11 +45,12 @@ if (!result.success) {
 }
 
 await Promise.all([
-  copyTree("ftgen-plotter"),
-  copyTree("js"),
-  copyTree("step-sequencer"),
-  copyFile("styles.css"),
-  copyFile("lekton.regular.ttf"),
+  copyTree("tools/ftgen-plotter", "ftgen-plotter"),
+  copyTree("tools/step-sequencer", "step-sequencer"),
+  copyFile(
+    "assets/fonts/lekton.regular.ttf",
+    "ftgen-plotter/lekton.regular.ttf",
+  ),
 ]);
 
 console.log(`Built ${outputRoot}`);

@@ -1,7 +1,7 @@
 /* Hallmark · token set: Terminal · paper band: dark · display style: mono · accent hue: phosphor green */
 @font-face {
   font-family: "Lekton";
-  src: url("./lekton.regular.ttf") format("truetype");
+  src: url("../assets/fonts/lekton.regular.ttf") format("truetype");
   font-style: normal;
   font-weight: 400;
   font-display: swap;

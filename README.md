@@ -5,8 +5,19 @@ A small index for two Csound browser tools:
 - `/ftgen-plotter/`
 - `/step-sequencer/`
 
-The homepage uses Bun's HTML bundler. The tool files stay unchanged and the
-build script copies them into `dist`.
+The homepage uses Bun's HTML bundler. The build script copies the legacy tool
+bundles into `dist` without recompiling them.
+
+The source tree keeps both legacy apps under `tools/`:
+
+```text
+tools/
+├── ftgen-plotter/
+└── step-sequencer/
+```
+
+The build keeps their public URLs at `/ftgen-plotter/` and
+`/step-sequencer/`.
 
 ## Local use
 
@@ -35,4 +46,5 @@ deployment → Source** to **GitHub Actions**.
 
 The original ClojureScript project is in
 [hlolli/csound-ftgen-plotter](https://github.com/hlolli/csound-ftgen-plotter).
-The checked-in `js/main.js.map` file also contains the original source text.
+The checked-in `tools/ftgen-plotter/js/main.js.map` file also contains the
+original source text.

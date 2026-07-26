@@ -1,0 +1,16 @@
+{
+  "scanned_at": "2026-07-26",
+  "font_stack": {
+    "plotter": "Lekton",
+    "sequencer": "Roboto"
+  },
+  "palette": "Black and warm cream",
+  "motion": "cut",
+  "spacing": "No token scale",
+  "framework": "Vanilla HTML with compiled ClojureScript",
+  "preserve": [
+    "Legacy FTGen plotter assets",
+    "Legacy step sequencer assets",
+    "Dark, sparse visual character"
+  ]
+}

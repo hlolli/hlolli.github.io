@@ -1,8 +1,60 @@
 <!doctype html>
-<html>
-  <link href="/styles.css" rel="stylesheet" type="text/css" media="all">
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="description" content="Small Csound tools by Hlöðver Sigurðsson.">
+    <meta name="color-scheme" content="dark">
+    <title>Hlöðver Sigurðsson · Csound tools</title>
+    <link rel="stylesheet" href="./src/home.css">
+  </head>
   <body>
-    <div id="app"></div>
-    <script src="/js/main.js?version=5"></script>
+    <header class="nav-term" aria-label="Site">
+      <p class="nav-term__line">
+        <span class="nav-term__prompt" aria-hidden="true">&gt;</span>
+        <span>hlolli</span>
+        <a class="nav-term__link" href="#tools">--tools</a>
+        <span class="nav-term__caret" aria-hidden="true">▮</span>
+      </p>
+    </header>
+
+    <main class="shell">
+      <header class="intro">
+        <h1>Csound tools for the browser.</h1>
+        <p>Two small experiments in sequencing and function tables.</p>
+      </header>
+
+      <section class="tool-index" id="tools" aria-label="Tools">
+        <article class="tool">
+          <div class="tool__body">
+            <time class="tool__date" datetime="2018-09">September 2018</time>
+            <h2>
+              <a class="tool__link" href="/ftgen-plotter/">
+                FTGen plotter <span aria-hidden="true">→</span>
+              </a>
+            </h2>
+            <p>Plot and inspect Csound function tables in the browser.</p>
+          </div>
+          <p class="tool__status">browser tool</p>
+        </article>
+
+        <article class="tool">
+          <div class="tool__body">
+            <time class="tool__date" datetime="2016-08">August 2016</time>
+            <h2>
+              <a class="tool__link" href="/step-sequencer/">
+                Step sequencer <span aria-hidden="true">→</span>
+              </a>
+            </h2>
+            <p>A compact Csound sequencer built around the old PNaCl browser runtime.</p>
+          </div>
+          <p class="tool__status">archive</p>
+        </article>
+      </section>
+    </main>
+
+    <footer class="foot-line">
+      <p>Hlöðver Sigurðsson · Csound tools · 2026</p>
+    </footer>
   </body>
 </html>

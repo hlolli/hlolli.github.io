@@ -3,7 +3,7 @@ import { keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { lilypond } from "codemirror-lang-lilypond";
-import { lilypondVersion } from "../.local-packages/lilypond-wasm/index.js";
+import { lilypondVersion } from "@hlolli/lilypond-wasm";
 
 type DiagnosticLevel = "info" | "warning" | "error" | "success";
 

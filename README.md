@@ -25,6 +25,7 @@ The build keeps their public URLs at `/ftgen-plotter/` and
 Install [Bun 1.3.14](https://bun.sh/) or newer, then run:
 
 ```sh
+bun install
 bun run dev
 ```
 
@@ -37,26 +38,19 @@ bun run build
 bun run preview
 ```
 
-## Local LilyPond package
+## LilyPond package
 
-The `/lilypond/` route uses an ignored Nix output link. Create it, then install
-the other Bun dependencies:
+The `/lilypond/` route uses the exact `@hlolli/lilypond-wasm` version in
+`package.json`. Bun installs it with the other site dependencies.
+
+To update the run-time package:
 
 ```sh
-mkdir -p .local-packages
-nix build \
-  path:../../csound/lilypond-wasm#lilypond-npm \
-  --out-link .local-packages/lilypond-wasm
-bun install
+bun add --exact @hlolli/lilypond-wasm@0.1.0-alpha.1
 ```
 
-The build imports `@hlolli/lilypond-wasm` straight from this link. Bun does not
-fetch or copy it from a registry. Re-run the `nix build` command to test a new
-package output; no Bun reinstall is needed.
-
 The build packs the package’s LilyPond and Guile run-time files for the browser,
-copies the Wasm command and its licence tree, and leaves the package link out
-of Git.
+then copies the Wasm command and its licence tree into the site output.
 
 ## GitHub Pages
 

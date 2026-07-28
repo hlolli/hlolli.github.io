@@ -7,6 +7,7 @@
       "dependencies": {
         "@codemirror/language": "6.12.4",
         "@codemirror/view": "6.43.7",
+        "@hlolli/lilypond-wasm": "0.1.0-alpha.1",
         "@lezer/highlight": "1.2.3",
         "@napi-rs/wasm-runtime": "1.1.6",
         "@tybys/wasm-util": "0.10.3",
@@ -35,6 +36,8 @@
     "@emnapi/runtime": ["@emnapi/runtime@1.11.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA=="],
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.3", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g=="],
+
+    "@hlolli/lilypond-wasm": ["@hlolli/lilypond-wasm@0.1.0-alpha.1", "", {}, "sha512-HAcDKIbwvxNc6oSBM0ueEZi9Vn6qRdCEj/2Ft51uyFmwhHG5Qs5PVt4mk2H+q3h5UkfYU5a0ynZbp7FzU9Nr9A=="],
 
     "@lezer/common": ["@lezer/common@1.5.2", "", {}, "sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ=="],
 

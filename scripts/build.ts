@@ -1,12 +1,14 @@
 import { mkdir, rm } from "node:fs/promises";
 import { gzipSync } from "node:zlib";
-import { resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const projectRoot = resolve(import.meta.dir, "..");
 const outputRoot = resolve(projectRoot, "dist");
-const lilypondPackageRoot = resolve(
-  projectRoot,
-  ".local-packages/lilypond-wasm",
+const lilypondPackageRoot = dirname(
+  fileURLToPath(
+    import.meta.resolve("@hlolli/lilypond-wasm/package.json"),
+  ),
 );
 
 async function copyTree(

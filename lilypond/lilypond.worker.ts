@@ -6,7 +6,7 @@ import {
   lilypondWasmUrl,
   runtimeEnvironment,
   runtimeRequirements,
-} from "../.local-packages/lilypond-wasm/index.js";
+} from "@hlolli/lilypond-wasm";
 import { Volume, createFsFromVolume } from "@napi-rs/wasm-runtime/fs";
 import { WASI } from "@tybys/wasm-util";
 

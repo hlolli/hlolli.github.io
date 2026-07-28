@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta
+      name="description"
+      content="Edit LilyPond source and render an SVG score with the local WebAssembly package."
+    >
+    <meta name="color-scheme" content="dark">
+    <title>LilyPond · WASM workbench</title>
+    <link rel="stylesheet" href="./lilypond.css">
+  </head>
+  <body>
+    <header class="tool-bar" aria-label="LilyPond workbench">
+      <a class="wordmark" href="/" aria-label="Back to Csound tools">
+        lilypond<span aria-hidden="true">.wasm</span>
+      </a>
+
+      <div class="tool-bar__action">
+        <p
+          class="runtime-state"
+          id="runtime-state"
+          data-state="loading"
+          role="status"
+          aria-atomic="true"
+        >
+          <span class="runtime-state__mark" aria-hidden="true"></span>
+          <span id="runtime-state-label">Loading local package</span>
+        </p>
+        <button
+          class="render-button"
+          id="render-button"
+          type="button"
+          data-action="render"
+          aria-describedby="render-hint"
+          disabled
+        >
+          <span class="render-button__spinner" aria-hidden="true"></span>
+          <span class="render-button__label">Render score</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="workbench">
+      <div class="workbench__main">
+        <section class="panel editor-panel" aria-labelledby="source-heading">
+          <header class="panel__header">
+            <div>
+              <h1 id="source-heading">LilyPond source</h1>
+              <p id="render-hint">Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd></p>
+            </div>
+            <p class="file-name">main.ly</p>
+          </header>
+          <div class="editor-host" id="editor"></div>
+        </section>
+
+        <section class="panel preview-panel" aria-labelledby="preview-heading">
+          <header class="panel__header">
+            <div>
+              <h2 id="preview-heading">Score preview</h2>
+              <p id="preview-summary">No render yet</p>
+            </div>
+            <p class="file-name" id="output-name">score.svg</p>
+          </header>
+          <div class="preview" id="preview">
+            <div class="preview__empty" id="preview-empty">
+              <div class="empty-staff" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </div>
+              <p>Render the source to inspect LilyPond’s SVG output.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="console" aria-labelledby="console-heading">
+        <header class="console__header">
+          <div class="console__title">
+            <h2 id="console-heading">Diagnostics</h2>
+            <span id="diagnostic-count">0 messages</span>
+          </div>
+          <button class="console__clear" id="clear-console" type="button">Clear</button>
+        </header>
+        <ol
+          class="console__output"
+          id="console-output"
+          aria-label="Diagnostic messages"
+        ></ol>
+      </section>
+    </main>
+
+    <footer class="tool-footer">
+      <p>
+        Local npm package · WASI Preview 1 · SVG only ·
+        <a href="./THIRD_PARTY_NOTICES.md">licences and source notices</a>
+      </p>
+    </footer>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

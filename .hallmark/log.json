@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-07-28",
+    "macrostructure": "Workbench",
+    "theme": "Terminal",
+    "enrichment": "none",
+    "brief": "Local LilyPond Wasm editor with SVG preview and diagnostics"
+  },
+  {
     "date": "2026-07-26",
     "macrostructure": "Index-First",
     "theme": "Terminal",

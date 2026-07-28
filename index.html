@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="description" content="Small Csound tools by Hlöðver Sigurðsson.">
+    <meta name="description" content="Small browser music tools by Hlöðver Sigurðsson.">
     <meta name="color-scheme" content="dark">
     <title>Hlöðver Sigurðsson · Csound tools</title>
     <link rel="stylesheet" href="./src/home.css">
@@ -20,11 +20,24 @@
 
     <main class="shell">
       <header class="intro">
-        <h1>Csound tools for the browser.</h1>
-        <p>Two small experiments in sequencing and function tables.</p>
+        <h1>Music tools for the browser.</h1>
+        <p>Small experiments in notation, sequencing, and function tables.</p>
       </header>
 
       <section class="tool-index" id="tools" aria-label="Tools">
+        <article class="tool">
+          <div class="tool__body">
+            <time class="tool__date" datetime="2026-07">July 2026</time>
+            <h2>
+              <a class="tool__link" href="/lilypond/">
+                LilyPond WASM <span aria-hidden="true">→</span>
+              </a>
+            </h2>
+            <p>Edit LilyPond source and render an SVG score with a local WASI package.</p>
+          </div>
+          <p class="tool__status">local preview</p>
+        </article>
+
         <article class="tool">
           <div class="tool__body">
             <time class="tool__date" datetime="2018-09">September 2018</time>
@@ -54,7 +67,7 @@
     </main>
 
     <footer class="foot-line">
-      <p>Hlöðver Sigurðsson · Csound tools · 2026</p>
+      <p>Hlöðver Sigurðsson · Browser music tools · 2026</p>
     </footer>
   </body>
 </html>

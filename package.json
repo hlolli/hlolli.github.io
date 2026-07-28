@@ -11,5 +11,13 @@
     "dev": "bun run build && bun scripts/serve.ts",
     "build": "bun scripts/build.ts",
     "preview": "bun scripts/serve.ts"
+  },
+  "dependencies": {
+    "@codemirror/language": "6.12.4",
+    "@lezer/highlight": "1.2.3",
+    "@napi-rs/wasm-runtime": "1.1.6",
+    "@tybys/wasm-util": "0.10.3",
+    "codemirror": "6.0.2",
+    "codemirror-lang-lilypond": "0.0.1"
   }
 }

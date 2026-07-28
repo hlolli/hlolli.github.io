@@ -14,10 +14,11 @@
   },
   "dependencies": {
     "@codemirror/language": "6.12.4",
+    "@codemirror/view": "6.43.7",
     "@lezer/highlight": "1.2.3",
     "@napi-rs/wasm-runtime": "1.1.6",
     "@tybys/wasm-util": "0.10.3",
     "codemirror": "6.0.2",
-    "codemirror-lang-lilypond": "0.0.1"
+    "codemirror-lang-lilypond": "0.0.2"
   }
 }

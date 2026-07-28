@@ -1,4 +1,5 @@
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { lilypond } from "codemirror-lang-lilypond";
@@ -189,6 +190,15 @@ const editor = new EditorView({
   doc: defaultSource,
   parent: editorHost,
   extensions: [
+    keymap.of([
+      {
+        key: "Mod-Enter",
+        run: () => {
+          renderScore();
+          return true;
+        },
+      },
+    ]),
     basicSetup,
     lilypond(),
     syntaxHighlighting(lilypondHighlightStyle),
@@ -479,13 +489,6 @@ renderButton.addEventListener("click", () => {
     renderScore();
   } else {
     cancelRender();
-  }
-});
-
-editor.dom.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-    event.preventDefault();
-    renderScore();
   }
 });
 

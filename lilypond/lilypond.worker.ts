@@ -5,6 +5,7 @@ import {
   lilypondVersion,
   lilypondWasmUrl,
   runtimeEnvironment,
+  runtimeMountOrder,
   runtimeRequirements,
 } from "@hlolli/lilypond-wasm";
 import { Volume, createFsFromVolume } from "@napi-rs/wasm-runtime/fs";
@@ -123,10 +124,8 @@ function makeFileSystem(
   for (const directory of [
     "/work/cache/fontconfig",
     "/work/home",
-    "/work/lily-lib",
     "/work/tmp",
-    "/lilypond",
-    "/guile-ccache",
+    ...runtimeMountOrder,
   ]) {
     fs.mkdirSync(directory, { recursive: true });
   }
@@ -195,6 +194,7 @@ async function render(request: RenderRequest) {
         "/work": "/work",
         "/lilypond": "/lilypond",
         "/guile-ccache": "/guile-ccache",
+        "/lilypond-lib": "/lilypond-lib",
       },
       fs,
       returnOnExit: true,

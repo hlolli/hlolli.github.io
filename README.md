@@ -46,7 +46,7 @@ The `/lilypond/` route uses the exact `@hlolli/lilypond-wasm` version in
 To update the run-time package:
 
 ```sh
-bun add --exact @hlolli/lilypond-wasm@0.1.0-alpha.1
+bun add --exact @hlolli/lilypond-wasm@0.1.0-alpha.2
 ```
 
 The build packs the package’s LilyPond and Guile run-time files for the browser,

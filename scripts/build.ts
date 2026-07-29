@@ -50,6 +50,7 @@ async function copyProjectFile(sourceName: string, destinationName: string) {
 
 type PackageRuntimeManifest = {
   lilypondVersion: string;
+  mountOrder: string[];
   mounts: Record<string, string>;
 };
 
@@ -71,9 +72,12 @@ async function buildLilypondRuntimePack() {
   const packParts: Uint8Array[] = [];
   let offset = 0;
 
-  for (const [guestRoot, packagePath] of Object.entries(
-    packageManifest.mounts,
-  )) {
+  for (const guestRoot of packageManifest.mountOrder) {
+    const packagePath = packageManifest.mounts[guestRoot];
+    if (!packagePath) {
+      throw new Error(`No package path found for run-time mount ${guestRoot}`);
+    }
+
     const sourceRoot = resolve(lilypondPackageRoot, packagePath);
     const files = new Bun.Glob("**/*");
     const relativePaths: string[] = [];

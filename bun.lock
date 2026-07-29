@@ -6,6 +6,7 @@
       "name": "hlolli-github-io",
       "dependencies": {
         "@codemirror/language": "6.12.4",
+        "@codemirror/state": "6.7.1",
         "@codemirror/view": "6.43.7",
         "@hlolli/lilypond-wasm": "0.1.0-alpha.2",
         "@lezer/highlight": "1.2.3",

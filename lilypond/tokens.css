@@ -12,7 +12,7 @@
   --color-paper-2: oklch(15% 0.022 145);
   --color-paper-3: oklch(19% 0.024 145);
   --color-rule: oklch(28% 0.03 140);
-  --color-rule-2: oklch(40% 0.05 140);
+  --color-rule-2: oklch(50% 0.05 140);
   --color-muted: oklch(61% 0.065 140);
   --color-neutral: oklch(72% 0.085 140);
   --color-ink-2: oklch(84% 0.06 138);
@@ -26,6 +26,7 @@
   --color-score-ink: oklch(18% 0.015 88);
   --color-selection: oklch(39% 0.09 140);
   --color-selection-ink: var(--color-ink);
+  --color-backdrop: oklch(5% 0.01 145 / 0.82);
   --color-clear: transparent;
 
   /* Syntax roles stay within the Terminal palette. */
@@ -84,6 +85,7 @@
   --dur-micro: 120ms;
   --dur-short: 220ms;
   --dur-long: 420ms;
+  --dur-spinner: 900ms;
 
   --z-base: 1;
   --z-raised: 10;

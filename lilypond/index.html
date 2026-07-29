@@ -18,6 +18,28 @@
       </a>
 
       <div class="tool-bar__action">
+        <div class="tool-bar__folder-actions">
+          <button
+            class="action-button action-button--secondary folder-button"
+            id="folder-button"
+            type="button"
+            data-action="open"
+            data-state="idle"
+            title="Open a local folder with read and write access"
+          >
+            Open folder
+          </button>
+          <button
+            class="action-button action-button--danger forget-folder-button"
+            id="forget-folder"
+            type="button"
+            data-state="idle"
+            title="Remove saved folder access and recovery data"
+            hidden
+          >
+            Forget saved folder
+          </button>
+        </div>
         <p
           class="runtime-state"
           id="runtime-state"
@@ -29,20 +51,29 @@
           <span id="runtime-state-label">Loading local package</span>
         </p>
         <button
-          class="render-button"
+          class="action-button action-button--primary render-button"
           id="render-button"
           type="button"
           data-action="render"
+          data-state="loading"
           aria-describedby="render-hint"
           disabled
         >
           <span class="render-button__spinner" aria-hidden="true"></span>
-          <span class="render-button__label">Render score</span>
+          <span class="render-button__label">Loading renderer…</span>
         </button>
       </div>
     </header>
 
     <main class="workbench">
+      <div
+        class="workspace-notice"
+        id="workspace-notice"
+        role="status"
+        aria-live="polite"
+        hidden
+      ></div>
+
       <div class="workbench__main">
         <section class="panel editor-panel" aria-labelledby="source-heading">
           <header class="panel__header">
@@ -50,9 +81,78 @@
               <h1 id="source-heading">LilyPond source</h1>
               <p id="render-hint">Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd></p>
             </div>
-            <p class="file-name">main.ly</p>
+            <div class="editor-file-action">
+              <p class="file-name" id="active-file-name">main.ly</p>
+              <button
+                class="action-button action-button--save save-button"
+                id="save-file"
+                type="button"
+                data-state="idle"
+                hidden
+              >
+                Save file
+              </button>
+            </div>
           </header>
-          <div class="editor-host" id="editor"></div>
+          <div class="workspace-editor" id="workspace-editor" data-mode="scratchpad">
+            <aside
+              class="file-browser"
+              id="file-browser"
+              aria-labelledby="file-browser-heading"
+              hidden
+            >
+              <header class="file-browser__header">
+                <div>
+                  <h2 id="file-browser-heading">Project files</h2>
+                  <p id="workspace-root-name"></p>
+                </div>
+                <div class="file-browser__actions">
+                  <button
+                    class="action-button action-button--quiet"
+                    id="refresh-tree"
+                    type="button"
+                    data-state="idle"
+                    title="Read the folder again"
+                  >
+                    Refresh files
+                  </button>
+                  <button
+                    class="action-button action-button--danger"
+                    id="disconnect-folder"
+                    type="button"
+                    data-state="idle"
+                    title="Forget this folder and return to the scratchpad"
+                  >
+                    Disconnect folder
+                  </button>
+                </div>
+              </header>
+              <div
+                class="file-tree"
+                id="file-tree"
+              ></div>
+            </aside>
+
+            <div
+              class="tab-bar"
+              id="tab-bar"
+              role="tablist"
+              aria-orientation="horizontal"
+              aria-label="Open files"
+              hidden
+            ></div>
+
+            <div
+              class="editor-stage"
+              id="editor-panel-content"
+              role="tabpanel"
+            >
+              <div class="editor-empty" id="editor-empty" hidden>
+                <p>No file is open. Choose a text file from Project files.</p>
+              </div>
+              <div class="editor-host" id="editor"></div>
+            </div>
+          </div>
         </section>
 
         <section class="panel preview-panel" aria-labelledby="preview-heading">
@@ -80,7 +180,13 @@
             <h2 id="console-heading">Diagnostics</h2>
             <span id="diagnostic-count">0 messages</span>
           </div>
-          <button class="console__clear" id="clear-console" type="button">Clear</button>
+          <button
+            class="action-button action-button--quiet console__clear"
+            id="clear-console"
+            type="button"
+          >
+            Clear
+          </button>
         </header>
         <ol
           class="console__output"
@@ -89,6 +195,69 @@
         ></ol>
       </section>
     </main>
+
+    <dialog class="save-conflict" id="save-conflict-dialog">
+      <form method="dialog">
+        <h2>File changed outside this editor</h2>
+        <p id="save-conflict-message"></p>
+        <ul class="save-conflict__choices">
+          <li><strong>Keep editing</strong> writes nothing.</li>
+          <li><strong>Use disk version</strong> discards this tab’s edits.</li>
+          <li><strong>Replace file on disk</strong> discards the outside changes.</li>
+        </ul>
+        <div class="save-conflict__actions">
+          <button
+            class="action-button action-button--primary"
+            type="submit"
+            value="cancel"
+            autofocus
+          >
+            Keep editing
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="reload"
+          >
+            Use disk version
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="overwrite"
+          >
+            Replace file on disk
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="draft-recovery" id="draft-recovery-dialog">
+      <form method="dialog">
+        <h2>Unsaved work found</h2>
+        <p id="draft-recovery-message"></p>
+        <p class="draft-recovery__detail">
+          The recovery draft has edits that are not in the file on disk.
+        </p>
+        <div class="draft-recovery__actions">
+          <button
+            class="action-button action-button--primary"
+            type="submit"
+            value="restore"
+            autofocus
+          >
+            Restore draft
+          </button>
+          <button
+            class="action-button action-button--danger"
+            type="submit"
+            value="discard"
+          >
+            Discard draft
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <footer class="tool-footer">
       <p>

@@ -1,9 +1,15 @@
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { EditorState } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { lilypond } from "codemirror-lang-lilypond";
 import { lilypondVersion } from "@hlolli/lilypond-wasm";
+import { isLilyPondFile } from "./filesystem/file-types";
+import {
+  WorkspaceController,
+  type WorkspaceRenderContext,
+} from "./workspace-controller";
 
 type DiagnosticLevel = "info" | "warning" | "error" | "success";
 
@@ -87,6 +93,9 @@ const diagnosticCount =
 const clearConsole =
   requiredElement<HTMLButtonElement>("#clear-console");
 const editorHost = requiredElement<HTMLDivElement>("#editor");
+
+let workspaceController: WorkspaceController | null = null;
+let activeRequestId: number | null = null;
 
 const editorTheme = EditorView.theme(
   {
@@ -186,10 +195,10 @@ const lilypondHighlightStyle = HighlightStyle.define([
   },
 ]);
 
-const editor = new EditorView({
-  doc: defaultSource,
-  parent: editorHost,
-  extensions: [
+function createEditorState(content: string, fileName: string) {
+  return EditorState.create({
+    doc: content,
+    extensions: [
     keymap.of([
       {
         key: "Mod-Enter",
@@ -198,26 +207,91 @@ const editor = new EditorView({
           return true;
         },
       },
+      {
+        key: "Mod-s",
+        run: () => workspaceController?.saveActiveFile() ?? false,
+      },
+      {
+        key: "Mod-w",
+        run: () => workspaceController?.closeActiveFile() ?? false,
+      },
     ]),
     basicSetup,
-    lilypond(),
+    isLilyPondFile(fileName) ? lilypond() : [],
     syntaxHighlighting(lilypondHighlightStyle),
     EditorView.lineWrapping,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged && activeRequestId !== null) {
+        cancelRender("Render cancelled because the source changed.");
+      }
+      workspaceController?.handleEditorUpdate(update);
+    }),
     EditorView.contentAttributes.of({
       "aria-label": "LilyPond source",
       spellcheck: "false",
     }),
     editorTheme,
-  ],
+    ],
+  });
+}
+
+const editor = new EditorView({
+  state: createEditorState(defaultSource, "main.ly"),
+  parent: editorHost,
 });
 
 let worker: Worker | null = null;
 let requestId = 0;
-let activeRequestId: number | null = null;
 let messageCount = 0;
 let packageReady = false;
 let previewObjectUrls: string[] = [];
 let previewSummaryBeforeRender = "No render yet";
+
+function canRenderCurrentDocument() {
+  return (
+    packageReady &&
+    (workspaceController?.canRenderActiveFile() ?? true)
+  );
+}
+
+function updateRenderAvailability() {
+  if (activeRequestId === null) {
+    renderButton.disabled = !canRenderCurrentDocument();
+  }
+}
+
+function setRenderAction(
+  state: "idle" | "loading" | "error" | "success",
+  label: string,
+  action: "render" | "cancel",
+  disabled: boolean,
+) {
+  renderButton.dataset.state = state;
+  renderButton.dataset.action = action;
+  renderButtonLabel.textContent = label;
+  renderButton.disabled = disabled;
+  renderButton.title =
+    action === "cancel"
+      ? "Stop the current render"
+      : state === "error"
+        ? "Try rendering the current source again"
+        : "Render the current source with Command or Ctrl + Enter";
+  if (state === "loading") {
+    renderButton.setAttribute("aria-busy", "true");
+  } else {
+    renderButton.removeAttribute("aria-busy");
+  }
+}
+
+function handleWorkspaceStateChange() {
+  if (activeRequestId !== null) {
+    cancelRender(
+      "Render cancelled because the active file or folder changed.",
+    );
+    return;
+  }
+  updateRenderAvailability();
+}
 
 function setRuntimeState(
   state: "loading" | "ready" | "working" | "error",
@@ -341,8 +415,15 @@ function createWorker() {
     },
   );
 
-  nextWorker.addEventListener("message", handleWorkerMessage);
+  nextWorker.addEventListener("message", (event) => {
+    if (worker === nextWorker) {
+      handleWorkerMessage(event);
+    }
+  });
   nextWorker.addEventListener("error", (event) => {
+    if (worker !== nextWorker) {
+      return;
+    }
     const message = event.message || "The renderer worker stopped.";
     addDiagnostic("error", message);
     showRenderError("The renderer stopped.");
@@ -367,9 +448,12 @@ function finishRender(
   label: string,
 ) {
   activeRequestId = null;
-  renderButton.disabled = !packageReady;
-  renderButton.dataset.action = "render";
-  renderButtonLabel.textContent = "Render score";
+  setRenderAction(
+    state === "error" ? "error" : "idle",
+    state === "error" ? "Retry render" : "Render score",
+    "render",
+    !canRenderCurrentDocument(),
+  );
   preview.removeAttribute("aria-busy");
   setRuntimeState(state, label);
   disposeWorker();
@@ -380,8 +464,13 @@ function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
 
   if (message.type === "ready") {
     packageReady = true;
-    renderButton.disabled = false;
     if (activeRequestId === null) {
+      setRenderAction(
+        "idle",
+        "Render score",
+        "render",
+        !canRenderCurrentDocument(),
+      );
       setRuntimeState(
         "ready",
         `LilyPond ${message.lilypondVersion} · Guile ${message.guileVersion}`,
@@ -450,36 +539,50 @@ function handleWorkerMessage(event: MessageEvent<WorkerMessage>) {
 }
 
 function renderScore() {
-  if (activeRequestId !== null || !packageReady) {
+  if (activeRequestId !== null || !canRenderCurrentDocument()) {
     return;
   }
 
-  const source = editor.state.doc.toString();
+  const workspaceRenderContext: WorkspaceRenderContext | null =
+    workspaceController?.getRenderContext() ?? null;
+  const source =
+    workspaceRenderContext?.source ?? editor.state.doc.toString();
+  const inputLabel = workspaceRenderContext?.displayPath ?? "main.ly";
   requestId += 1;
   activeRequestId = requestId;
 
   previewSummaryBeforeRender = previewSummary.textContent ?? "No render yet";
-  renderButton.disabled = false;
-  renderButton.dataset.action = "cancel";
-  renderButtonLabel.textContent = "Cancel render";
+  setRenderAction(
+    "loading",
+    "Cancel render",
+    "cancel",
+    false,
+  );
   preview.setAttribute("aria-busy", "true");
   previewSummary.textContent = "Rendering…";
   setRuntimeState("working", "Starting renderer");
-  addDiagnostic("info", "Render requested for main.ly");
+  addDiagnostic("info", `Render requested for ${inputLabel}`);
 
   getWorker().postMessage({
     type: "render",
     requestId,
     source,
+    ...(workspaceRenderContext
+      ? {
+          inputPath: workspaceRenderContext.path,
+          workspaceRoot: workspaceRenderContext.rootHandle,
+          openBuffers: workspaceRenderContext.openBuffers,
+        }
+      : {}),
   });
 }
 
-function cancelRender() {
+function cancelRender(message = "Render cancelled") {
   if (activeRequestId === null) {
     return;
   }
 
-  addDiagnostic("warning", "Render cancelled");
+  addDiagnostic("warning", message);
   previewSummary.textContent = previewSummaryBeforeRender;
   finishRender("ready", "Render cancelled");
 }
@@ -516,13 +619,34 @@ async function loadInterfaceFonts() {
   await Promise.all(fonts);
 }
 
-window.addEventListener("beforeunload", () => {
+window.addEventListener("beforeunload", (event) => {
+  if (workspaceController?.hasUnsavedChanges()) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+
+window.addEventListener("pagehide", (event) => {
+  if (event.persisted) {
+    return;
+  }
   disposeWorker();
   releasePreviewObjectUrls();
+  workspaceController?.dispose();
 });
 
 updateDiagnosticCount();
 createWorker();
+workspaceController = new WorkspaceController({
+  editor,
+  createEditorState,
+  addDiagnostic,
+  onStateChange: handleWorkspaceStateChange,
+});
+void workspaceController.initialize().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  addDiagnostic("error", message);
+});
 void loadInterfaceFonts().catch(() => {
   addDiagnostic("warning", "Could not load the LilyPond interface font");
 });

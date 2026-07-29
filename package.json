@@ -9,11 +9,13 @@
   },
   "scripts": {
     "dev": "bun run build && bun scripts/serve.ts",
+    "test": "bun test",
     "build": "bun scripts/build.ts",
     "preview": "bun scripts/serve.ts"
   },
   "dependencies": {
     "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.7",
     "@hlolli/lilypond-wasm": "0.1.0-alpha.2",
     "@lezer/highlight": "1.2.3",

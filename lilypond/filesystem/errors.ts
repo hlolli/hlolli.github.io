@@ -18,6 +18,7 @@ export type WorkspaceOperation =
   | "list-directory"
   | "resolve-file"
   | "read-file"
+  | "create-file"
   | "write-file"
   | "database";
 
@@ -83,6 +84,12 @@ function operationFailure(
       return new WorkspaceError(
         "file-read-failed",
         `Could not read the file${suffix}`,
+        { path },
+      );
+    case "create-file":
+      return new WorkspaceError(
+        "file-write-failed",
+        `Could not create the file${suffix}`,
         { path },
       );
     case "write-file":

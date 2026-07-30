@@ -113,10 +113,20 @@ class MockDirectoryHandle {
     return entry as unknown as FileSystemDirectoryHandle;
   }
 
-  async getFileHandle(name: string) {
-    const entry = this.children.get(name);
-    if (!entry || entry.kind !== "file") {
+  async getFileHandle(
+    name: string,
+    options: { create?: boolean } = {},
+  ) {
+    let entry = this.children.get(name);
+    if (!entry && options.create) {
+      entry = new MockFileHandle(name, "");
+      this.children.set(name, entry);
+    }
+    if (!entry) {
       throw new DOMException("Missing file", "NotFoundError");
+    }
+    if (entry.kind !== "file") {
+      throw new DOMException("Wrong type", "TypeMismatchError");
     }
     return entry as unknown as FileSystemFileHandle;
   }
@@ -228,4 +238,50 @@ test("connects, expands, edits, saves, and restores a browser workspace", async 
   expect(restored.activeFileId).toBe(file.id);
   expect(restored.files[0].content).toBe("d4");
   expect(restored.files[0].dirty).toBe(false);
+});
+
+test("creates an empty main file before adding and saving starter source", async () => {
+  const root = new MockDirectoryHandle("scores");
+  const repository = new FileSystemWorkspace({
+    handleStore: new MemoryHandleStore(),
+    scope: {
+      isSecureContext: true,
+      showDirectoryPicker: async () =>
+        root as unknown as FileSystemDirectoryHandle,
+    },
+    createWorkspaceId: () => "workspace-create",
+  });
+  await repository.connect();
+
+  const created = await repository.createTextFile(["main.ly"]);
+  expect(created.status).toBe("created");
+  expect(created.file.content).toBe("");
+  const diskFile = root.children.get("main.ly") as MockFileHandle;
+  expect(diskFile.content).toBe("");
+  expect(diskFile.writeCount).toBe(0);
+
+  const existing = await repository.createTextFile(["main.ly"]);
+  expect(existing.status).toBe("exists");
+  expect(existing.file.content).toBe("");
+
+  let state = createWorkspaceState("workspace-create");
+  state = openOrFocusFile(state, toOpenFile(created.file));
+  state = editFile(state, created.file.id, "c4");
+  expect(state.files[0].dirty).toBe(true);
+  expect(diskFile.content).toBe("");
+
+  const file = state.files[0];
+  const saved = await repository.writeFileHandle(
+    file.pathSegments,
+    file.handle,
+    file.content,
+    {
+      content: file.savedContent,
+      lastModified: file.lastModified,
+      size: file.size,
+    },
+  );
+  expect(saved.status).toBe("saved");
+  expect(diskFile.content).toBe("c4");
+  expect(diskFile.writeCount).toBe(1);
 });

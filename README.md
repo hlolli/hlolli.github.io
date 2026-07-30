@@ -56,8 +56,11 @@ then copies the Wasm command and its licence tree into the site output.
 
 The LilyPond page starts as the same in-memory scratchpad as before. Choose
 **Open folder** to give the page read and write access to a local project.
-Folder mode adds a file tree, editor tabs, direct saves, recovery drafts, and
-checks for files changed by another app.
+Folder mode adds separate **Editor** and **Files** views in the left column,
+editor tabs, direct saves, recovery drafts, and checks for files changed by
+another app. Use **New text file** to add a supported text file inside the
+open folder or one of its existing subfolders. If `main.ly` is missing, the
+editor offers to create it with a starter score ready to save.
 
 The browser stores the selected folder handle in IndexedDB. It restores the
 folder after a refresh when access remains granted. If access expires, use

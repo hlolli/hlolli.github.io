@@ -640,6 +640,7 @@ createWorker();
 workspaceController = new WorkspaceController({
   editor,
   createEditorState,
+  starterSource: defaultSource,
   addDiagnostic,
   onStateChange: handleWorkspaceStateChange,
 });

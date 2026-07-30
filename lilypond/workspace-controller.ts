@@ -5,8 +5,10 @@ import {
   WorkspaceDatabase,
   WorkspaceError,
   WorkspaceHandleStore,
+  classifyWorkspaceFile,
   isLilyPondFile,
   isWorkspaceError,
+  parseWorkspacePath,
   pathFromId,
   pathToDisplay,
   pathToId,
@@ -45,6 +47,7 @@ type NoticeState = "info" | "warning" | "error" | "success";
 type ConflictChoice = "reload" | "overwrite" | "cancel";
 type DraftChoice = "restore" | "discard";
 type ActionState = "idle" | "loading" | "error" | "success";
+type WorkspaceView = "editor" | "files";
 
 type DirectorySnapshot = {
   status: "loading" | "ready" | "error";
@@ -66,6 +69,7 @@ export type WorkspaceRenderContext = {
 type WorkspaceControllerOptions = {
   editor: EditorView;
   createEditorState: (content: string, fileName: string) => EditorState;
+  starterSource: string;
   addDiagnostic: (level: DiagnosticLevel, message: string) => void;
   onStateChange: () => void;
 };
@@ -100,6 +104,7 @@ function readResultToOpenFile(result: ReadFileResult): OpenFile {
 export class WorkspaceController {
   private readonly editor: EditorView;
   private readonly createEditorState: WorkspaceControllerOptions["createEditorState"];
+  private readonly starterSource: string;
   private readonly addDiagnostic: WorkspaceControllerOptions["addDiagnostic"];
   private readonly onStateChange: WorkspaceControllerOptions["onStateChange"];
 
@@ -118,6 +123,16 @@ export class WorkspaceController {
     requiredElement<HTMLDivElement>("#workspace-notice");
   private readonly workspaceEditor =
     requiredElement<HTMLDivElement>("#workspace-editor");
+  private readonly workspaceViewTabs =
+    requiredElement<HTMLDivElement>("#workspace-view-tabs");
+  private readonly workspaceEditorTab =
+    requiredElement<HTMLButtonElement>("#workspace-editor-tab");
+  private readonly workspaceFilesTab =
+    requiredElement<HTMLButtonElement>("#workspace-files-tab");
+  private readonly workspaceEditorView =
+    requiredElement<HTMLElement>("#workspace-editor-view");
+  private readonly workspaceFilesView =
+    requiredElement<HTMLElement>("#workspace-files-view");
   private readonly fileBrowser =
     requiredElement<HTMLElement>("#file-browser");
   private readonly fileTree =
@@ -126,12 +141,22 @@ export class WorkspaceController {
     requiredElement<HTMLParagraphElement>("#workspace-root-name");
   private readonly refreshButton =
     requiredElement<HTMLButtonElement>("#refresh-tree");
+  private readonly newFileButton =
+    requiredElement<HTMLButtonElement>("#new-file");
   private readonly disconnectButton =
     requiredElement<HTMLButtonElement>("#disconnect-folder");
   private readonly tabBar =
     requiredElement<HTMLDivElement>("#tab-bar");
   private readonly editorEmpty =
     requiredElement<HTMLDivElement>("#editor-empty");
+  private readonly editorEmptyTitle =
+    requiredElement<HTMLHeadingElement>("#editor-empty-title");
+  private readonly editorEmptyMessage =
+    requiredElement<HTMLParagraphElement>("#editor-empty-message");
+  private readonly mainFileAction =
+    requiredElement<HTMLButtonElement>("#main-file-action");
+  private readonly browseFilesButton =
+    requiredElement<HTMLButtonElement>("#browse-files");
   private readonly editorStage =
     requiredElement<HTMLDivElement>("#editor-panel-content");
   private readonly editorHost =
@@ -152,8 +177,21 @@ export class WorkspaceController {
     requiredElement<HTMLDialogElement>("#draft-recovery-dialog");
   private readonly draftRecoveryMessage =
     requiredElement<HTMLParagraphElement>("#draft-recovery-message");
+  private readonly newFileDialog =
+    requiredElement<HTMLDialogElement>("#new-file-dialog");
+  private readonly newFileForm =
+    requiredElement<HTMLFormElement>("#new-file-form");
+  private readonly newFilePath =
+    requiredElement<HTMLInputElement>("#new-file-path");
+  private readonly newFileHelp =
+    requiredElement<HTMLParagraphElement>("#new-file-help");
+  private readonly createFileButton =
+    requiredElement<HTMLButtonElement>("#create-file");
+  private readonly cancelNewFileButton =
+    requiredElement<HTMLButtonElement>("#cancel-new-file");
 
   private mode: "scratchpad" | "folder" = "scratchpad";
+  private workspaceView: WorkspaceView = "editor";
   private state: WorkspaceState = createWorkspaceState();
   private descriptor: WorkspaceDescriptor | null = null;
   private scratchpadState: EditorState;
@@ -166,7 +204,10 @@ export class WorkspaceController {
     ReturnType<typeof setTimeout>
   >();
   private readonly openingFiles = new Set<string>();
+  private latestOpenFileId: string | null = null;
   private readonly savingFiles = new Set<string>();
+  private creatingPath: string | null = null;
+  private newFileInputTouched = false;
   private folderActionInFlight: number | null = null;
   private folderActionSequence = 0;
   private saveErrorFileId: string | null = null;
@@ -180,6 +221,7 @@ export class WorkspaceController {
   constructor(options: WorkspaceControllerOptions) {
     this.editor = options.editor;
     this.createEditorState = options.createEditorState;
+    this.starterSource = options.starterSource;
     this.addDiagnostic = options.addDiagnostic;
     this.onStateChange = options.onStateChange;
     this.scratchpadState = this.editor.state;
@@ -194,10 +236,43 @@ export class WorkspaceController {
       this.handleForgetRemembered,
     );
     this.refreshButton.addEventListener("click", this.handleRefresh);
+    this.newFileButton.addEventListener("click", this.handleNewFile);
     this.disconnectButton.addEventListener(
       "click",
       this.handleDisconnect,
     );
+    this.workspaceEditorTab.addEventListener(
+      "click",
+      this.handleEditorView,
+    );
+    this.workspaceFilesTab.addEventListener(
+      "click",
+      this.handleFilesView,
+    );
+    this.workspaceViewTabs.addEventListener(
+      "keydown",
+      this.handleWorkspaceViewKeydown,
+    );
+    this.browseFilesButton.addEventListener(
+      "click",
+      this.handleBrowseFiles,
+    );
+    this.mainFileAction.addEventListener(
+      "click",
+      this.handleMainFileAction,
+    );
+    this.newFileForm.addEventListener(
+      "submit",
+      this.handleCreateFileSubmit,
+    );
+    this.cancelNewFileButton.addEventListener(
+      "click",
+      this.handleCancelNewFile,
+    );
+    this.newFilePath.addEventListener("blur", this.handleNewFileBlur);
+    this.newFilePath.addEventListener("input", this.handleNewFileInput);
+    this.newFileDialog.addEventListener("cancel", this.handleNewFileCancel);
+    this.newFileDialog.addEventListener("click", this.handleNewFileBackdrop);
     this.saveButton.addEventListener("click", this.handleSave);
     window.addEventListener("keydown", this.handleWindowKeydown);
     document.addEventListener(
@@ -355,9 +430,48 @@ export class WorkspaceController {
       this.handleForgetRemembered,
     );
     this.refreshButton.removeEventListener("click", this.handleRefresh);
+    this.newFileButton.removeEventListener("click", this.handleNewFile);
     this.disconnectButton.removeEventListener(
       "click",
       this.handleDisconnect,
+    );
+    this.workspaceEditorTab.removeEventListener(
+      "click",
+      this.handleEditorView,
+    );
+    this.workspaceFilesTab.removeEventListener(
+      "click",
+      this.handleFilesView,
+    );
+    this.workspaceViewTabs.removeEventListener(
+      "keydown",
+      this.handleWorkspaceViewKeydown,
+    );
+    this.browseFilesButton.removeEventListener(
+      "click",
+      this.handleBrowseFiles,
+    );
+    this.mainFileAction.removeEventListener(
+      "click",
+      this.handleMainFileAction,
+    );
+    this.newFileForm.removeEventListener(
+      "submit",
+      this.handleCreateFileSubmit,
+    );
+    this.cancelNewFileButton.removeEventListener(
+      "click",
+      this.handleCancelNewFile,
+    );
+    this.newFilePath.removeEventListener("blur", this.handleNewFileBlur);
+    this.newFilePath.removeEventListener("input", this.handleNewFileInput);
+    this.newFileDialog.removeEventListener(
+      "cancel",
+      this.handleNewFileCancel,
+    );
+    this.newFileDialog.removeEventListener(
+      "click",
+      this.handleNewFileBackdrop,
     );
     this.saveButton.removeEventListener("click", this.handleSave);
     window.removeEventListener("keydown", this.handleWindowKeydown);
@@ -396,6 +510,21 @@ export class WorkspaceController {
     void this.refreshTree();
   };
 
+  private readonly handleNewFile = () => {
+    if (
+      this.mode !== "folder" ||
+      this.creatingPath !== null ||
+      this.folderActionInFlight !== null ||
+      this.refreshButton.dataset.state === "loading"
+    ) {
+      return;
+    }
+    this.resetNewFileValidation();
+    this.newFilePath.value = "";
+    this.newFileDialog.showModal();
+    this.newFilePath.focus();
+  };
+
   private readonly handleForgetRemembered = () => {
     void this.forgetRememberedFolder();
   };
@@ -406,6 +535,99 @@ export class WorkspaceController {
 
   private readonly handleSave = () => {
     void this.saveActiveFileNow();
+  };
+
+  private readonly handleEditorView = () => {
+    this.setWorkspaceView("editor");
+  };
+
+  private readonly handleFilesView = () => {
+    this.latestOpenFileId = null;
+    this.setWorkspaceView("files");
+  };
+
+  private readonly handleBrowseFiles = () => {
+    this.latestOpenFileId = null;
+    this.setWorkspaceView("files", true);
+  };
+
+  private readonly handleWorkspaceViewKeydown = (event: KeyboardEvent) => {
+    if (
+      event.target !== this.workspaceEditorTab &&
+      event.target !== this.workspaceFilesTab
+    ) {
+      return;
+    }
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    const currentView: WorkspaceView =
+      event.target === this.workspaceEditorTab ? "editor" : "files";
+    const nextView: WorkspaceView = event.key === "Home"
+      ? "editor"
+      : event.key === "End"
+        ? "files"
+        : currentView === "editor"
+          ? "files"
+          : "editor";
+    if (nextView === "files") {
+      this.latestOpenFileId = null;
+    }
+    this.setWorkspaceView(nextView, true);
+  };
+
+  private readonly handleMainFileAction = () => {
+    const mainFile = this.findRootMainFile();
+    if (mainFile) {
+      void this.openFile(mainFile);
+      return;
+    }
+    void this.createTextFile(["main.ly"], { seedStarter: true });
+  };
+
+  private readonly handleCreateFileSubmit = (event: SubmitEvent) => {
+    event.preventDefault();
+    this.newFileInputTouched = true;
+    const path = this.validateNewFileInput();
+    if (!path) {
+      this.newFilePath.focus();
+      return;
+    }
+    void this.createTextFile(path);
+  };
+
+  private readonly handleCancelNewFile = () => {
+    if (this.creatingPath === null) {
+      this.newFileDialog.close();
+    }
+  };
+
+  private readonly handleNewFileBlur = () => {
+    this.newFileInputTouched = true;
+    this.validateNewFileInput();
+  };
+
+  private readonly handleNewFileInput = () => {
+    if (this.newFileInputTouched) {
+      this.validateNewFileInput();
+    }
+  };
+
+  private readonly handleNewFileCancel = (event: Event) => {
+    if (this.creatingPath !== null) {
+      event.preventDefault();
+    }
+  };
+
+  private readonly handleNewFileBackdrop = (event: MouseEvent) => {
+    if (
+      event.target === this.newFileDialog &&
+      this.creatingPath === null
+    ) {
+      this.newFileDialog.close();
+    }
   };
 
   private readonly handleVisibilityChange = () => {
@@ -419,6 +641,7 @@ export class WorkspaceController {
       this.mode !== "folder" ||
       this.conflictDialog.open ||
       this.draftRecoveryDialog.open ||
+      this.newFileDialog.open ||
       event.defaultPrevented ||
       !(event.metaKey || event.ctrlKey) ||
       event.altKey
@@ -437,7 +660,16 @@ export class WorkspaceController {
   };
 
   private async openFolder() {
-    if (this.folderActionInFlight !== null) {
+    if (
+      this.folderActionInFlight !== null ||
+      this.creatingPath !== null
+    ) {
+      if (this.creatingPath !== null) {
+        this.showNotice(
+          "Wait for the new file before changing folders.",
+          "warning",
+        );
+      }
       return;
     }
     const discardingDirtyChanges = hasDirtyFiles(this.state);
@@ -639,7 +871,16 @@ export class WorkspaceController {
   }
 
   private async disconnectFolder() {
-    if (this.folderActionInFlight !== null) {
+    if (
+      this.folderActionInFlight !== null ||
+      this.creatingPath !== null
+    ) {
+      if (this.creatingPath !== null) {
+        this.showNotice(
+          "Wait for the new file before disconnecting this folder.",
+          "warning",
+        );
+      }
       return;
     }
     if (!this.confirmDiscardAll("disconnect this folder")) {
@@ -708,6 +949,7 @@ export class WorkspaceController {
     this.fileBrowser.setAttribute("aria-busy", "true");
     this.state = createWorkspaceState(workspace.workspaceId);
     this.displayedFileId = null;
+    this.latestOpenFileId = null;
     this.saveErrorFileId = null;
     this.editorStates.clear();
     this.directoryCache.clear();
@@ -716,7 +958,18 @@ export class WorkspaceController {
     );
 
     this.workspaceEditor.dataset.mode = "folder";
-    this.fileBrowser.hidden = false;
+    this.workspaceViewTabs.hidden = false;
+    this.workspaceEditorView.setAttribute("role", "tabpanel");
+    this.workspaceEditorView.setAttribute(
+      "aria-labelledby",
+      this.workspaceEditorTab.id,
+    );
+    this.workspaceFilesView.setAttribute("role", "tabpanel");
+    this.workspaceFilesView.setAttribute(
+      "aria-labelledby",
+      this.workspaceFilesTab.id,
+    );
+    this.setWorkspaceView("editor");
     this.tabBar.hidden = false;
     this.saveButton.hidden = false;
     this.rootName.textContent = workspace.name;
@@ -750,19 +1003,32 @@ export class WorkspaceController {
   private leaveWorkspace() {
     this.workspaceGeneration += 1;
     this.restoringSession = false;
+    this.creatingPath = null;
     this.fileBrowser.removeAttribute("aria-busy");
     this.cancelDraftTimers();
     this.mode = "scratchpad";
     this.descriptor = null;
     this.state = createWorkspaceState();
     this.displayedFileId = null;
+    this.latestOpenFileId = null;
     this.saveErrorFileId = null;
     this.editorStates.clear();
     this.savingFiles.clear();
     this.directoryCache.clear();
     this.expandedDirectories.clear();
     this.workspaceEditor.dataset.mode = "scratchpad";
-    this.fileBrowser.hidden = true;
+    this.workspaceView = "editor";
+    this.workspaceViewTabs.hidden = true;
+    this.workspaceEditorView.hidden = false;
+    this.workspaceFilesView.hidden = true;
+    this.workspaceEditorView.removeAttribute("role");
+    this.workspaceEditorView.removeAttribute("aria-labelledby");
+    this.workspaceFilesView.removeAttribute("role");
+    this.workspaceFilesView.removeAttribute("aria-labelledby");
+    this.workspaceEditorTab.setAttribute("aria-selected", "true");
+    this.workspaceEditorTab.tabIndex = 0;
+    this.workspaceFilesTab.setAttribute("aria-selected", "false");
+    this.workspaceFilesTab.tabIndex = -1;
     this.tabBar.hidden = true;
     this.saveButton.hidden = true;
     this.rootName.textContent = "";
@@ -777,6 +1043,7 @@ export class WorkspaceController {
       this.disconnectButton,
       "Disconnect folder",
     );
+    this.syncCreationControls();
     this.editorEmpty.hidden = true;
     this.editorHost.inert = false;
     this.editorHost.removeAttribute("aria-hidden");
@@ -786,6 +1053,36 @@ export class WorkspaceController {
       "Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>";
     this.editor.setState(this.scratchpadState);
     this.onStateChange();
+  }
+
+  private setWorkspaceView(
+    view: WorkspaceView,
+    focusTab = false,
+  ) {
+    if (this.mode !== "folder") {
+      return;
+    }
+    this.workspaceView = view;
+    const editorActive = view === "editor";
+    this.workspaceEditorTab.setAttribute(
+      "aria-selected",
+      String(editorActive),
+    );
+    this.workspaceEditorTab.tabIndex = editorActive ? 0 : -1;
+    this.workspaceFilesTab.setAttribute(
+      "aria-selected",
+      String(!editorActive),
+    );
+    this.workspaceFilesTab.tabIndex = editorActive ? -1 : 0;
+    this.workspaceEditorView.hidden = !editorActive;
+    this.workspaceFilesView.hidden = editorActive;
+    if (focusTab) {
+      (
+        editorActive
+          ? this.workspaceEditorTab
+          : this.workspaceFilesTab
+      ).focus();
+    }
   }
 
   private async restoreTabSession(
@@ -865,7 +1162,13 @@ export class WorkspaceController {
     this.persistSession();
   }
 
-  private async openFile(entry: Extract<WorkspaceEntry, { kind: "file" }>) {
+  private async openFile(
+    entry: Extract<WorkspaceEntry, { kind: "file" }>,
+    options: { preserveIntent?: boolean } = {},
+  ) {
+    if (!options.preserveIntent) {
+      this.latestOpenFileId = entry.id;
+    }
     if (!entry.fileType.editable) {
       const message = `${pathToDisplay(entry.path)} is not a supported text file.`;
       this.showNotice(message, "warning");
@@ -875,7 +1178,11 @@ export class WorkspaceController {
 
     const existing = this.state.files.find((file) => file.id === entry.id);
     if (existing) {
+      if (this.latestOpenFileId !== entry.id) {
+        return;
+      }
       this.state = focusFile(this.state, existing.id);
+      this.setWorkspaceView("editor");
       this.activateCurrentEditor(true);
       this.persistSession();
       return;
@@ -941,17 +1248,31 @@ export class WorkspaceController {
         (candidate) => candidate.id === file.id,
       );
       if (alreadyOpen) {
+        if (this.latestOpenFileId !== entry.id) {
+          return;
+        }
         this.state = focusFile(this.state, alreadyOpen.id);
+        this.setWorkspaceView("editor");
         this.activateCurrentEditor(true);
         this.persistSession();
         return;
       }
+      const shouldActivate = this.latestOpenFileId === entry.id;
+      const activeFileId = this.state.activeFileId;
       this.state = openOrFocusFile(this.state, file);
+      if (activeFileId && !shouldActivate) {
+        this.state = focusFile(this.state, activeFileId);
+      }
       this.editorStates.set(
         file.id,
         this.createEditorState(file.content, file.name),
       );
-      this.activateCurrentEditor(true);
+      if (shouldActivate) {
+        this.setWorkspaceView("editor");
+        this.activateCurrentEditor(true);
+      } else {
+        this.activateCurrentEditor(false);
+      }
       this.persistSession();
       this.addDiagnostic("info", `Opened ${file.path}`);
     } catch (error) {
@@ -960,6 +1281,215 @@ export class WorkspaceController {
       this.openingFiles.delete(openKey);
       this.renderTree();
     }
+  }
+
+  private async createTextFile(
+    path: string[],
+    options: { seedStarter?: boolean } = {},
+  ) {
+    if (
+      this.mode !== "folder" ||
+      !this.state.workspaceId ||
+      this.creatingPath !== null ||
+      this.folderActionInFlight !== null ||
+      this.refreshButton.dataset.state === "loading"
+    ) {
+      return;
+    }
+
+    const displayPath = pathToDisplay(path);
+    const requestedFileId = pathToId(path);
+    const generation = this.workspaceGeneration;
+    const workspaceId = this.state.workspaceId;
+    this.latestOpenFileId = requestedFileId;
+    this.creatingPath = displayPath;
+    this.syncCreationControls();
+    this.syncEditorEmptyState();
+
+    try {
+      const result = await this.repository.createTextFile(path);
+      if (
+        generation !== this.workspaceGeneration ||
+        workspaceId !== this.state.workspaceId
+      ) {
+        return;
+      }
+      if (this.latestOpenFileId === requestedFileId) {
+        this.latestOpenFileId = result.file.id;
+      }
+
+      if (this.newFileDialog.open) {
+        this.newFileDialog.close();
+        this.resetNewFileValidation();
+      }
+      await this.refreshTree(generation);
+      if (
+        generation !== this.workspaceGeneration ||
+        workspaceId !== this.state.workspaceId
+      ) {
+        return;
+      }
+
+      const entry: Extract<WorkspaceEntry, { kind: "file" }> = {
+        id: result.file.id,
+        path: [...result.file.path],
+        name: result.file.name,
+        kind: "file",
+        fileType: classifyWorkspaceFile(result.file.name),
+      };
+      await this.openFile(entry, { preserveIntent: true });
+      if (
+        generation !== this.workspaceGeneration ||
+        workspaceId !== this.state.workspaceId
+      ) {
+        return;
+      }
+
+      const opened = this.state.files.find(
+        (file) => file.id === result.file.id,
+      );
+      if (!opened) {
+        this.showNotice(
+          `${result.status === "created" ? "Created" : "Found"} ` +
+            `${displayPath}, but the editor could not open it. ` +
+            "Choose the file from the Files view to try again.",
+          "warning",
+        );
+        return;
+      }
+
+      if (
+        result.status === "created" &&
+        options.seedStarter &&
+        opened.content === "" &&
+        opened.savedContent === ""
+      ) {
+        this.state = editFile(
+          this.state,
+          opened.id,
+          this.starterSource,
+        );
+        const starterState = this.createEditorState(
+          this.starterSource,
+          opened.name,
+        );
+        this.editorStates.set(opened.id, starterState);
+        if (this.state.activeFileId === opened.id) {
+          this.editor.setState(starterState);
+          this.displayedFileId = opened.id;
+        }
+        this.scheduleDraft(opened.id);
+        this.persistSession();
+        this.renderInterface();
+        const message =
+          `Created ${displayPath}. The starter score has unsaved edits; ` +
+          "save it to write them to disk.";
+        this.showNotice(message, "info");
+        this.addDiagnostic("info", message);
+        return;
+      }
+
+      const message = result.status === "exists"
+        ? `${displayPath} already existed. Opened it without changing the file.`
+        : `Created ${displayPath} and opened it.`;
+      if (result.status === "exists") {
+        this.showNotice(message, "info");
+      } else {
+        this.showNotice("", "info");
+      }
+      this.addDiagnostic(
+        result.status === "created" ? "success" : "info",
+        message,
+      );
+    } catch (error) {
+      this.reportError(error);
+      if (this.newFileDialog.open) {
+        this.setNewFileError(
+          `${errorMessage(error)} Check the path and try again.`,
+        );
+      }
+    } finally {
+      if (this.creatingPath === displayPath) {
+        this.creatingPath = null;
+        this.syncCreationControls();
+        this.syncEditorEmptyState();
+      }
+    }
+  }
+
+  private validateNewFileInput(): string[] | null {
+    let path: string[];
+    try {
+      path = parseWorkspacePath(this.newFilePath.value);
+    } catch (error) {
+      this.setNewFileError(errorMessage(error));
+      return null;
+    }
+
+    const fileType = classifyWorkspaceFile(path.at(-1)!);
+    if (!fileType.editable) {
+      this.setNewFileError(
+        "Use a text extension such as .ly, .ily, .txt, .md, or .json.",
+      );
+      return null;
+    }
+
+    this.newFilePath.value = path.join("/");
+    this.resetNewFileValidation(false);
+    return path;
+  }
+
+  private setNewFileError(message: string) {
+    this.newFileHelp.textContent = message;
+    this.newFileHelp.dataset.state = "error";
+    this.newFilePath.setAttribute("aria-invalid", "true");
+  }
+
+  private resetNewFileValidation(resetTouched = true) {
+    if (resetTouched) {
+      this.newFileInputTouched = false;
+    }
+    this.newFileHelp.textContent =
+      "Use an existing folder and a supported text extension.";
+    this.newFileHelp.removeAttribute("data-state");
+    this.newFilePath.removeAttribute("aria-invalid");
+  }
+
+  private findRootMainFile():
+    Extract<WorkspaceEntry, { kind: "file" }> | null {
+    const root = this.directoryCache.get(pathToId([]));
+    if (root?.status !== "ready") {
+      return null;
+    }
+    return root.entries.find(
+      (entry): entry is Extract<WorkspaceEntry, { kind: "file" }> =>
+        entry.kind === "file" && entry.name === "main.ly",
+    ) ?? null;
+  }
+
+  private syncCreationControls() {
+    const creating = this.creatingPath !== null;
+    this.setActionButton(
+      this.newFileButton,
+      creating ? "Creating…" : "New text file",
+      creating ? "loading" : "idle",
+      creating ||
+        this.restoringSession ||
+        this.refreshButton.dataset.state === "loading",
+    );
+    this.setActionButton(
+      this.createFileButton,
+      creating ? "Creating…" : "Create file",
+      creating ? "loading" : "idle",
+      creating,
+    );
+    this.cancelNewFileButton.disabled = creating;
+    this.newFilePath.disabled = creating;
+    this.refreshButton.disabled =
+      creating ||
+      this.restoringSession ||
+      this.refreshButton.dataset.state === "loading";
+    this.syncFolderLifecycleButtons();
   }
 
   private async closeFileById(fileId: string) {
@@ -1160,7 +1690,7 @@ export class WorkspaceController {
             "warning",
           );
         } else {
-          this.clearErrorNotice();
+          this.showNotice("", "info");
         }
         this.addDiagnostic("success", `Saved ${file.path}`);
       }
@@ -1272,6 +1802,7 @@ export class WorkspaceController {
     this.renderTabs();
     this.renderTree();
     this.syncHeader();
+    this.syncCreationControls();
     this.onStateChange();
   }
 
@@ -1305,6 +1836,7 @@ export class WorkspaceController {
         this.editorStage.setAttribute("aria-labelledby", select.id);
       }
       select.addEventListener("click", () => {
+        this.latestOpenFileId = file.id;
         this.state = focusFile(this.state, file.id);
         this.activateCurrentEditor(false);
         this.persistSession();
@@ -1331,6 +1863,7 @@ export class WorkspaceController {
         if (!nextFile) {
           return;
         }
+        this.latestOpenFileId = nextFile.id;
         this.state = focusFile(this.state, nextFile.id);
         this.activateCurrentEditor(false);
         this.persistSession();
@@ -1424,6 +1957,62 @@ export class WorkspaceController {
       this.renderHint.textContent =
         "Save writes to disk · Only .ly files can be rendered";
     }
+    this.syncEditorEmptyState();
+  }
+
+  private syncEditorEmptyState() {
+    if (this.mode !== "folder" || getActiveFile(this.state)) {
+      return;
+    }
+
+    const root = this.directoryCache.get(pathToId([]));
+    this.mainFileAction.hidden = true;
+    this.browseFilesButton.disabled = false;
+
+    if (!root || root.status === "loading") {
+      this.editorEmptyTitle.textContent = "Reading project files";
+      this.editorEmptyMessage.textContent =
+        "The editor will show a starter action when the folder is ready.";
+      return;
+    }
+
+    if (root.status === "error") {
+      this.editorEmptyTitle.textContent = "Project files unavailable";
+      this.editorEmptyMessage.textContent =
+        "Open the Files view, then use Retry refresh to read the folder again.";
+      return;
+    }
+
+    const mainFile = this.findRootMainFile();
+    const openingMain = mainFile !== null && this.openingFiles.has(
+      `${this.workspaceGeneration}\0${mainFile.id}`,
+    );
+    this.mainFileAction.hidden = false;
+    if (mainFile) {
+      this.editorEmptyTitle.textContent = "No file open";
+      this.editorEmptyMessage.textContent =
+        "Open the starter score or choose another text file.";
+      this.setActionButton(
+        this.mainFileAction,
+        openingMain ? "Opening…" : "Open main.ly",
+        openingMain ? "loading" : "idle",
+        openingMain || this.restoringSession,
+      );
+      return;
+    }
+
+    this.editorEmptyTitle.textContent = root.entries.length === 0
+      ? "Start this folder"
+      : "No starter score";
+    this.editorEmptyMessage.textContent =
+      "Create main.ly with sample source, or choose another text file.";
+    const creatingMain = this.creatingPath === "main.ly";
+    this.setActionButton(
+      this.mainFileAction,
+      creatingMain ? "Creating…" : "Create main.ly",
+      creatingMain ? "loading" : "idle",
+      creatingMain || this.restoringSession,
+    );
   }
 
   private async refreshTree(
@@ -1441,6 +2030,7 @@ export class WorkspaceController {
       "loading",
       true,
     );
+    this.syncCreationControls();
     this.directoryCache.clear();
     try {
       await this.loadDirectory([], generation);
@@ -1480,6 +2070,7 @@ export class WorkspaceController {
           "Refresh files",
         );
       }
+      this.syncCreationControls();
       this.renderTree();
     }
   }
@@ -1519,19 +2110,50 @@ export class WorkspaceController {
     const root = this.directoryCache.get(pathToId([]));
     if (!root || root.status === "loading") {
       this.fileTree.append(this.treeMessage("Loading files…"));
+      this.syncEditorEmptyState();
       return;
     }
     if (root.status === "error") {
       this.fileTree.append(
         this.treeMessage(root.message ?? "Could not read the folder.", true),
       );
+      this.syncEditorEmptyState();
       return;
     }
     if (root.entries.length === 0) {
-      this.fileTree.append(this.treeMessage("This folder is empty."));
+      this.fileTree.append(this.renderEmptyFolder());
+      this.syncEditorEmptyState();
       return;
     }
     this.fileTree.append(this.renderTreeGroup(root.entries));
+    this.syncEditorEmptyState();
+  }
+
+  private renderEmptyFolder() {
+    const empty = document.createElement("div");
+    empty.className = "file-tree-empty";
+
+    const title = document.createElement("h3");
+    title.textContent = "This folder is empty";
+
+    const detail = document.createElement("p");
+    detail.textContent =
+      "Create main.ly as a starter score, or add another text file.";
+
+    const action = document.createElement("button");
+    action.className = "action-button action-button--primary";
+    action.type = "button";
+    action.textContent = this.creatingPath === "main.ly"
+      ? "Creating…"
+      : "Create main.ly";
+    action.dataset.state = this.creatingPath === "main.ly"
+      ? "loading"
+      : "idle";
+    action.disabled =
+      this.creatingPath !== null || this.restoringSession;
+    action.addEventListener("click", this.handleMainFileAction);
+    empty.append(title, detail, action);
+    return empty;
   }
 
   private renderTreeGroup(entries: WorkspaceEntry[]) {
@@ -1702,6 +2324,13 @@ export class WorkspaceController {
   }
 
   private confirmDiscardAll(action: string) {
+    if (this.creatingPath !== null) {
+      this.showNotice(
+        "Wait for the new file before changing folders.",
+        "warning",
+      );
+      return false;
+    }
     if (this.savingFiles.size > 0) {
       this.showNotice(
         "Wait for the current save before changing folders.",
@@ -1816,10 +2445,18 @@ export class WorkspaceController {
   ) {
     button.textContent = label;
     button.dataset.state = state;
+    const blockedByCreation =
+      this.creatingPath !== null &&
+      (
+        this.isFolderLifecycleButton(button) ||
+        button === this.refreshButton ||
+        button === this.newFileButton ||
+        button === this.mainFileAction
+      );
     button.disabled = disabled || (
       this.folderActionInFlight !== null &&
       this.isFolderLifecycleButton(button)
-    );
+    ) || blockedByCreation;
     if (state === "loading") {
       button.setAttribute("aria-busy", "true");
     } else {
@@ -1828,7 +2465,11 @@ export class WorkspaceController {
   }
 
   private beginFolderAction(): number | null {
-    if (this.folderActionInFlight !== null || this.disposed) {
+    if (
+      this.folderActionInFlight !== null ||
+      this.creatingPath !== null ||
+      this.disposed
+    ) {
       return null;
     }
     const token = ++this.folderActionSequence;
@@ -1850,7 +2491,9 @@ export class WorkspaceController {
   }
 
   private syncFolderLifecycleButtons() {
-    const disabled = this.folderActionInFlight !== null;
+    const disabled =
+      this.folderActionInFlight !== null ||
+      this.creatingPath !== null;
     for (
       const button of [
         this.folderButton,

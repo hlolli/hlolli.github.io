@@ -93,8 +93,12 @@ class MockDirectoryHandle {
   readonly children = new Map<string, MockEntry>();
   queryCount = 0;
   requestCount = 0;
+  createCount = 0;
+  caseInsensitive = false;
   permission: PermissionState = "granted";
   requestedPermission: PermissionState = "granted";
+  beforeCreate: ((name: string) => void) | null = null;
+  createFailure: DOMException | null = null;
 
   constructor(readonly name: string) {}
 
@@ -104,7 +108,7 @@ class MockDirectoryHandle {
   }
 
   async getDirectoryHandle(name: string) {
-    const entry = this.children.get(name);
+    const entry = this.findEntry(name);
     if (!entry) {
       throw new DOMException("missing", "NotFoundError");
     }
@@ -114,8 +118,23 @@ class MockDirectoryHandle {
     return entry as unknown as FileSystemDirectoryHandle;
   }
 
-  async getFileHandle(name: string) {
-    const entry = this.children.get(name);
+  async getFileHandle(
+    name: string,
+    options: { create?: boolean } = {},
+  ) {
+    let entry = this.findEntry(name);
+    if (!entry && options.create) {
+      this.createCount += 1;
+      if (this.createFailure) {
+        throw this.createFailure;
+      }
+      this.beforeCreate?.(name);
+      entry = this.children.get(name);
+      if (!entry) {
+        entry = new MockFileHandle(name, "");
+        this.children.set(name, entry);
+      }
+    }
     if (!entry) {
       throw new DOMException("missing", "NotFoundError");
     }
@@ -149,6 +168,18 @@ class MockDirectoryHandle {
 
   async isSameEntry(other: FileSystemHandle) {
     return other === (this as unknown as FileSystemHandle);
+  }
+
+  private findEntry(name: string) {
+    const direct = this.children.get(name);
+    if (direct || !this.caseInsensitive) {
+      return direct;
+    }
+    const foldedName = name.toLocaleLowerCase("en-US");
+    return [...this.children.values()].find(
+      (entry) =>
+        entry.name.toLocaleLowerCase("en-US") === foldedName,
+    );
   }
 }
 
@@ -375,6 +406,147 @@ describe("FileSystemWorkspace", () => {
     );
     expect(saved.status).toBe("saved");
     expect(score.content).toBe("e4");
+  });
+
+  test("creates an empty root text file without opening a writable stream", async () => {
+    const root = new MockDirectoryHandle("Scores");
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    const result = await workspace.createTextFile(["main.ly"]);
+
+    expect(result.status).toBe("created");
+    expect(result.file).toMatchObject({
+      path: ["main.ly"],
+      name: "main.ly",
+      content: "",
+    });
+    expect(root.createCount).toBe(1);
+    expect(
+      (root.children.get("main.ly") as MockFileHandle).writeCount,
+    ).toBe(0);
+  });
+
+  test("creates a text file inside an existing folder", async () => {
+    const parts = new MockDirectoryHandle("parts");
+    const root = new MockDirectoryHandle("Scores").add(parts);
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    const result = await workspace.createTextFile([
+      "parts",
+      "violin.ily",
+    ]);
+
+    expect(result.status).toBe("created");
+    expect(result.file.path).toEqual(["parts", "violin.ily"]);
+    expect(parts.children.has("violin.ily")).toBe(true);
+  });
+
+  test("opens an existing file without changing it", async () => {
+    const score = new MockFileHandle("main.ly", "c4");
+    const root = new MockDirectoryHandle("Scores").add(score);
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    const result = await workspace.createTextFile(["main.ly"]);
+
+    expect(result.status).toBe("exists");
+    expect(result.file.content).toBe("c4");
+    expect(score.writeCount).toBe(0);
+    expect(root.createCount).toBe(0);
+  });
+
+  test("returns the canonical path for a case-variant existing file", async () => {
+    const score = new MockFileHandle("violin.ily", "c4");
+    const parts = new MockDirectoryHandle("parts").add(score);
+    parts.caseInsensitive = true;
+    const root = new MockDirectoryHandle("Scores").add(parts);
+    root.caseInsensitive = true;
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    const result = await workspace.createTextFile([
+      "PARTS",
+      "VIOLIN.ILY",
+    ]);
+
+    expect(result.status).toBe("exists");
+    expect(result.file.path).toEqual(["parts", "violin.ily"]);
+    expect(result.file.id).toBe('["parts","violin.ily"]');
+    expect(result.file.name).toBe("violin.ily");
+    expect(score.writeCount).toBe(0);
+  });
+
+  test("rejects unsupported files and missing parent folders", async () => {
+    const root = new MockDirectoryHandle("Scores");
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    await expect(
+      workspace.createTextFile(["score.pdf"]),
+    ).rejects.toMatchObject({ code: "invalid-entry" });
+    await expect(
+      workspace.createTextFile(["parts", "violin.ly"]),
+    ).rejects.toMatchObject({ code: "entry-not-found" });
+    expect(root.createCount).toBe(0);
+  });
+
+  test("rejects a folder with the requested file name", async () => {
+    const root = new MockDirectoryHandle("Scores")
+      .add(new MockDirectoryHandle("main.ly"));
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    await expect(
+      workspace.createTextFile(["main.ly"]),
+    ).rejects.toMatchObject({ code: "invalid-entry" });
+    expect(root.createCount).toBe(0);
+  });
+
+  test("maps a failed create to a file write error", async () => {
+    const root = new MockDirectoryHandle("Scores");
+    root.createFailure = new DOMException("disk failure", "UnknownError");
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    await expect(
+      workspace.createTextFile(["main.ly"]),
+    ).rejects.toMatchObject({ code: "file-write-failed" });
+    expect(root.createCount).toBe(1);
+  });
+
+  test("requires write permission before creating a file", async () => {
+    const root = new MockDirectoryHandle("Scores");
+    root.permission = "prompt";
+    root.requestedPermission = "denied";
+    const { workspace } = makeWorkspace(root);
+    await workspace.setRootHandle(
+      root as unknown as FileSystemDirectoryHandle,
+    );
+
+    await expect(
+      workspace.createTextFile(["main.ly"]),
+    ).rejects.toMatchObject({ code: "permission-denied" });
+    expect(root.requestCount).toBe(1);
+    expect(root.createCount).toBe(0);
+  });
+
+  test("does not truncate a file created during a create race", async () => {
+    const root = new MockDirectoryHandle("Scores");
+    const racedFile = new MockFileHandle("main.ly", "external");
+    root.beforeCreate = (name) => {
+      root.add(racedFile);
+      expect(name).toBe("main.ly");
+    };
+    const { workspace } = makeWorkspace(root);
+    await workspace.connect();
+
+    const result = await workspace.createTextFile(["main.ly"]);
+
+    expect(result.status).toBe("exists");
+    expect(result.file.content).toBe("external");
+    expect(racedFile.writeCount).toBe(0);
   });
 
   test("aborts a failed direct write and keeps a clear error code", async () => {

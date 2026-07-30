@@ -76,3 +76,33 @@ export function appendPath(
   assertValidPathSegment(segment);
   return [...path, segment];
 }
+
+export function parseWorkspacePath(input: string): string[] {
+  const value = input.trim();
+  const invalidPath = (
+    value.length === 0 ||
+    value.startsWith("/") ||
+    value.endsWith("/") ||
+    value.includes("//") ||
+    value.includes("\\")
+  );
+
+  if (invalidPath) {
+    throw new WorkspaceError(
+      "invalid-path",
+      "Use a relative file path such as main.ly or parts/violin.ily.",
+    );
+  }
+
+  const path = value.split("/");
+  try {
+    assertValidWorkspacePath(path);
+  } catch (cause) {
+    throw new WorkspaceError(
+      "invalid-path",
+      "Use a relative file path such as main.ly or parts/violin.ily.",
+      { cause },
+    );
+  }
+  return path;
+}

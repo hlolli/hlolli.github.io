@@ -78,6 +78,14 @@ export type FileConflictResult = {
 
 export type WriteFileResult = SavedFileResult | FileConflictResult;
 
+export type CreateTextFileResult =
+  | { status: "created"; file: ReadFileResult }
+  | { status: "exists"; file: ReadFileResult };
+
+export type CreateTextFileOptions = {
+  requestPermission?: boolean;
+};
+
 export type WriteFileOptions = {
   force?: boolean;
   requestPermission?: boolean;
@@ -492,6 +500,66 @@ export class FileSystemWorkspace {
     }
   }
 
+  async createTextFile(
+    path: WorkspacePath,
+    options: CreateTextFileOptions = {},
+  ): Promise<CreateTextFileResult> {
+    assertValidWorkspacePath(path);
+    const displayPath = pathToDisplay(path);
+    const name = path.at(-1)!;
+    if (!classifyWorkspaceFile(name).editable) {
+      throw new WorkspaceError(
+        "invalid-entry",
+        `Choose a supported text file extension for ${displayPath}.`,
+        { path: displayPath },
+      );
+    }
+
+    try {
+      const resolvedParent = await this.resolveDirectoryWithPath(
+        path.slice(0, -1),
+      );
+      const parent = resolvedParent.directory;
+      try {
+        const existingHandle = await parent.getFileHandle(name);
+        const canonicalPath = [
+          ...resolvedParent.path,
+          existingHandle.name,
+        ];
+        return {
+          status: "exists",
+          file: await this.readFileHandle(
+            canonicalPath,
+            existingHandle,
+          ),
+        };
+      } catch (error) {
+        const mapped = mapWorkspaceError(
+          error,
+          "create-file",
+          displayPath,
+        );
+        if (mapped.code !== "entry-not-found") {
+          throw mapped;
+        }
+      }
+
+      await this.ensureWritePermission(
+        options.requestPermission ?? true,
+      );
+      const handle = await parent.getFileHandle(name, { create: true });
+      const canonicalPath = [...resolvedParent.path, handle.name];
+      const file = await this.readFileHandle(canonicalPath, handle);
+
+      return {
+        status: file.version.size > 0 ? "exists" : "created",
+        file,
+      };
+    } catch (error) {
+      throw mapWorkspaceError(error, "create-file", displayPath);
+    }
+  }
+
   async writeTextFile(
     path: WorkspacePath,
     content: string,
@@ -585,12 +653,23 @@ export class FileSystemWorkspace {
   private async resolveDirectory(
     path: WorkspacePath,
   ): Promise<FileSystemDirectoryHandle> {
+    return (await this.resolveDirectoryWithPath(path)).directory;
+  }
+
+  private async resolveDirectoryWithPath(
+    path: WorkspacePath,
+  ): Promise<{
+    directory: FileSystemDirectoryHandle;
+    path: string[];
+  }> {
     assertValidWorkspacePath(path, { allowRoot: true });
     let directory = this.requireRecord().handle;
+    const canonicalPath: string[] = [];
     for (const segment of path) {
       directory = await directory.getDirectoryHandle(segment);
+      canonicalPath.push(directory.name);
     }
-    return directory;
+    return { directory, path: canonicalPath };
   }
 
   private async readFileHandle(

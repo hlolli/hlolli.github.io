@@ -3,6 +3,7 @@
 A small index for browser music tools:
 
 - `/lilypond/`
+- `/csound-wasm-plugin-compiler/`
 - `/ftgen-plotter/`
 - `/step-sequencer/`
 
@@ -37,6 +38,19 @@ For a release build:
 bun run build
 bun run preview
 ```
+
+## Csound plugin compiler
+
+The `/csound-wasm-plugin-compiler/` route uses the `v0.1.0` release from
+[csound-wasm-plugin-compiler](https://github.com/hlolli/csound-wasm-plugin-compiler).
+The build downloads the app into `.local-packages`, checks its SHA-256, and
+unpacks it into `dist`.
+
+To use a new release, edit `opcodeCompilerRelease` in `scripts/build.ts`.
+Set its version, archive URL, top folder, and SHA-256.
+
+The release holds the full browser app. It includes the C and C++ compiler,
+Csound headers, Csound WASM, licence files, and worker code.
 
 ## LilyPond package
 

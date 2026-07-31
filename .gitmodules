@@ -1,0 +1,3 @@
+[submodule "tools/plugin-compiler"]
+	path = tools/plugin-compiler
+	url = https://github.com/hlolli/csound-wasm-plugin-compiler.git

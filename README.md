@@ -3,18 +3,20 @@
 A small index for browser music tools:
 
 - `/lilypond/`
-- `/csound-wasm-plugin-compiler/`
+- `/plugin-compiler/`
 - `/ftgen-plotter/`
 - `/step-sequencer/`
 
 The homepage and LilyPond workbench use Bun's HTML bundler. The build script
 copies the legacy tool bundles into `dist` without recompiling them.
 
-The source tree keeps both legacy apps under `tools/`:
+The source tree keeps both legacy apps and the pinned plugin compiler under
+`tools/`:
 
 ```text
 tools/
 ├── ftgen-plotter/
+├── plugin-compiler/  Git submodule
 └── step-sequencer/
 ```
 
@@ -26,6 +28,7 @@ The build keeps their public URLs at `/ftgen-plotter/` and
 Install [Bun 1.3.14](https://bun.sh/) or newer, then run:
 
 ```sh
+git submodule update --init
 bun install
 bun run dev
 ```
@@ -41,16 +44,21 @@ bun run preview
 
 ## Csound plugin compiler
 
-The `/csound-wasm-plugin-compiler/` route uses the `v0.1.0` release from
-[csound-wasm-plugin-compiler](https://github.com/hlolli/csound-wasm-plugin-compiler).
-The build downloads the app into `.local-packages`, checks its SHA-256, and
-unpacks it into `dist`.
+The `/plugin-compiler/` route builds the
+[csound-wasm-plugin-compiler](https://github.com/hlolli/csound-wasm-plugin-compiler)
+Git submodule.
 
-To use a new release, edit `opcodeCompilerRelease` in `scripts/build.ts`.
-Set its version, archive URL, top folder, and SHA-256.
+The site build installs its locked npm packages, runs its tests and production
+build, then copies its `dist` folder into the site output.
 
-The release holds the full browser app. It includes the C and C++ compiler,
-Csound headers, Csound WASM, licence files, and worker code.
+To update the pinned compiler commit:
+
+```sh
+git submodule update --remote tools/plugin-compiler
+bun run build
+```
+
+Commit the new `tools/plugin-compiler` pointer after the build passes.
 
 ## LilyPond package
 

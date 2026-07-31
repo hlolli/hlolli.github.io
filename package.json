@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "bun run build && bun scripts/serve.ts",
-    "test": "bun test",
+    "test": "bun install --cwd tools/plugin-compiler --frozen-lockfile && bun test lilypond && bun test --cwd tools/plugin-compiler",
     "build": "bun scripts/build.ts",
     "preview": "bun scripts/serve.ts"
   },

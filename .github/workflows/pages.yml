@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   poll_submodule:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -72,8 +72,10 @@ jobs:
     needs: poll_submodule
     if: >-
       always() &&
-      (github.event_name != 'schedule' ||
-      needs.poll_submodule.outputs.changed == 'true')
+      (needs.poll_submodule.result == 'skipped' ||
+      (needs.poll_submodule.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      needs.poll_submodule.outputs.changed == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -87,7 +89,7 @@ jobs:
           submodules: recursive
 
       - name: Update tool submodules
-        if: github.event_name == 'schedule'
+        if: needs.poll_submodule.outputs.changed == 'true'
         shell: bash
         env:
           PLUGIN_TARGET_SHA: ${{ needs.poll_submodule.outputs.plugin_latest }}
@@ -108,7 +110,11 @@ jobs:
               return
             fi
 
-            git -C "$path" fetch --no-tags origin "$submodule_branch"
+            if [[ "$(git -C "$path" rev-parse --is-shallow-repository)" == "true" ]]; then
+              git -C "$path" fetch --no-tags --unshallow origin "$submodule_branch"
+            else
+              git -C "$path" fetch --no-tags origin "$submodule_branch"
+            fi
 
             if ! git -C "$path" merge-base --is-ancestor "$current_sha" "$target_sha"; then
               echo "::error::Refusing a non-fast-forward update for $path"
@@ -145,7 +151,7 @@ jobs:
         run: bun run build
 
       - name: Commit tool submodule updates
-        if: github.event_name == 'schedule'
+        if: needs.poll_submodule.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail

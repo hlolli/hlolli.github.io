@@ -1,15 +1,12 @@
 import { mkdir, rm } from "node:fs/promises";
-import { gzipSync } from "node:zlib";
-import { dirname, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
 const projectRoot = resolve(import.meta.dir, "..");
 const outputRoot = resolve(projectRoot, "dist");
 const pluginCompilerRoot = resolve(projectRoot, "tools/plugin-compiler");
-const lilypondPackageRoot = dirname(
-  fileURLToPath(
-    import.meta.resolve("@hlolli/lilypond-wasm/package.json"),
-  ),
+const lilypondEditorRoot = resolve(
+  projectRoot,
+  "tools/lilypond-wasm/editor",
 );
 
 async function copyTree(
@@ -85,149 +82,32 @@ async function buildPluginCompiler() {
   console.log("Built OPCODE.WASM at /plugin-compiler/");
 }
 
-type PackageRuntimeManifest = {
-  lilypondVersion: string;
-  mountOrder: string[];
-  mounts: Record<string, string>;
-};
+async function buildLilypondEditor() {
+  const packagePath = resolve(lilypondEditorRoot, "package.json");
 
-type RuntimeFile = {
-  guestPath: string;
-  offset: number;
-  length: number;
-};
-
-async function buildLilypondRuntimePack() {
-  const packageManifestPath = resolve(
-    lilypondPackageRoot,
-    "runtime-manifest.json",
-  );
-  const packageManifest =
-    await Bun.file(packageManifestPath).json() as PackageRuntimeManifest;
-
-  const runtimeFiles: RuntimeFile[] = [];
-  const packParts: Uint8Array[] = [];
-  let offset = 0;
-
-  for (const guestRoot of packageManifest.mountOrder) {
-    const packagePath = packageManifest.mounts[guestRoot];
-    if (!packagePath) {
-      throw new Error(`No package path found for run-time mount ${guestRoot}`);
-    }
-
-    const sourceRoot = resolve(lilypondPackageRoot, packagePath);
-    const files = new Bun.Glob("**/*");
-    const relativePaths: string[] = [];
-
-    for await (const relativePath of files.scan({
-      cwd: sourceRoot,
-      dot: true,
-      onlyFiles: true,
-    })) {
-      relativePaths.push(relativePath);
-    }
-
-    relativePaths.sort();
-
-    for (const relativePath of relativePaths) {
-      const source = resolve(sourceRoot, relativePath);
-      const file = Bun.file(source);
-      const fileBytes = new Uint8Array(await file.arrayBuffer());
-      const guestPath = `${guestRoot}/${relativePath.split(sep).join("/")}`;
-
-      runtimeFiles.push({
-        guestPath,
-        offset,
-        length: fileBytes.byteLength,
-      });
-      packParts.push(fileBytes);
-      offset += fileBytes.byteLength;
-    }
+  if (!(await Bun.file(packagePath).exists())) {
+    throw new Error(
+      "LilyPond editor source is missing. Run git submodule update --init.",
+    );
   }
 
-  const pack = new Uint8Array(await new Blob(packParts).arrayBuffer());
-  const compressedPack = gzipSync(pack, { level: 9 });
-  const runtimeOutputRoot = resolve(outputRoot, "lilypond/runtime");
-
-  await mkdir(runtimeOutputRoot, { recursive: true });
-  await Bun.write(
-    resolve(runtimeOutputRoot, "runtime-files.pack.gz"),
-    compressedPack,
+  await run(
+    ["bun", "install", "--frozen-lockfile"],
+    lilypondEditorRoot,
   );
-  await Bun.write(
-    resolve(runtimeOutputRoot, "runtime-files.json"),
-    JSON.stringify(
-      {
-        schemaVersion: 1,
-        compression: "gzip",
-        uncompressedBytes: offset,
-        files: runtimeFiles,
-      },
-      null,
-      2,
-    ),
+  await run(["bun", "run", "build"], lilypondEditorRoot);
+  await copyTree(
+    resolve(lilypondEditorRoot, "dist"),
+    resolve(outputRoot, "lilypond"),
   );
 
-  await Promise.all([
-    copyFile(
-      resolve(lilypondPackageRoot, "dist/lilypond.wasm"),
-      resolve(outputRoot, "lilypond/dist/lilypond.wasm"),
-    ),
-    copyFile(
-      packageManifestPath,
-      resolve(outputRoot, "lilypond/runtime-manifest.json"),
-    ),
-    copyFile(
-      resolve(
-        lilypondPackageRoot,
-        `runtime/lilypond/${packageManifest.lilypondVersion}/fonts/text/NimbusSans-Regular.otf`,
-      ),
-      resolve(outputRoot, "lilypond/fonts/NimbusSans-Regular.otf"),
-    ),
-    copyFile(
-      resolve(
-        lilypondPackageRoot,
-        `runtime/lilypond/${packageManifest.lilypondVersion}/fonts/text/NimbusSans-Bold.otf`,
-      ),
-      resolve(outputRoot, "lilypond/fonts/NimbusSans-Bold.otf"),
-    ),
-    copyFile(
-      resolve(lilypondPackageRoot, "COPYING"),
-      resolve(outputRoot, "lilypond/COPYING"),
-    ),
-    copyFile(
-      resolve(lilypondPackageRoot, "LICENSE"),
-      resolve(outputRoot, "lilypond/LICENSE"),
-    ),
-    copyFile(
-      resolve(lilypondPackageRoot, "SOURCE.md"),
-      resolve(outputRoot, "lilypond/SOURCE.md"),
-    ),
-    copyFile(
-      resolve(lilypondPackageRoot, "THIRD_PARTY_NOTICES.md"),
-      resolve(outputRoot, "lilypond/THIRD_PARTY_NOTICES.md"),
-    ),
-    copyTree(
-      resolve(lilypondPackageRoot, "licenses"),
-      resolve(outputRoot, "lilypond/licenses"),
-    ),
-  ]);
-
-  console.log(
-    `Packed ${runtimeFiles.length} LilyPond runtime files: ` +
-      `${(offset / 1024 / 1024).toFixed(1)} MiB → ` +
-      `${(compressedPack.byteLength / 1024 / 1024).toFixed(1)} MiB`,
-  );
+  console.log("Built LilyPond editor at /lilypond/");
 }
 
 await rm(outputRoot, { recursive: true, force: true });
 
 const result = await Bun.build({
-  entrypoints: [
-    resolve(projectRoot, "index.html"),
-    resolve(projectRoot, "lilypond/index.html"),
-    resolve(projectRoot, "lilypond/lilypond.worker.ts"),
-  ],
+  entrypoints: [resolve(projectRoot, "index.html")],
   outdir: outputRoot,
   root: projectRoot,
   minify: true,
@@ -253,7 +133,7 @@ await Promise.all([
     "assets/fonts/lekton.regular.ttf",
     "ftgen-plotter/lekton.regular.ttf",
   ),
-  buildLilypondRuntimePack(),
+  buildLilypondEditor(),
   buildPluginCompiler(),
 ]);
 

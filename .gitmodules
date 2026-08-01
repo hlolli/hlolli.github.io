@@ -2,3 +2,7 @@
 	path = tools/plugin-compiler
 	url = https://github.com/hlolli/csound-wasm-plugin-compiler.git
 	branch = main
+[submodule "tools/lilypond-wasm"]
+	path = tools/lilypond-wasm
+	url = https://github.com/hlolli/lilypond-wasm.git
+	branch = main

@@ -22,36 +22,51 @@ jobs:
     timeout-minutes: 5
     outputs:
       changed: ${{ steps.compare.outputs.changed }}
-      latest: ${{ steps.compare.outputs.latest }}
+      plugin_latest: ${{ steps.compare.outputs.plugin_latest }}
+      lilypond_latest: ${{ steps.compare.outputs.lilypond_latest }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
-      - name: Compare plugin compiler revisions
+      - name: Compare tool revisions
         id: compare
         shell: bash
         run: |
           set -euo pipefail
 
-          submodule_url="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.url)"
-          submodule_branch="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.branch)"
-          current_sha="$(git ls-tree HEAD tools/plugin-compiler | awk '{print $3}')"
-          latest_sha="$(git ls-remote "$submodule_url" "refs/heads/$submodule_branch" | awk '{print $1}')"
+          changed=false
 
-          if [[ -z "$current_sha" || -z "$latest_sha" ]]; then
-            echo "::error::Could not resolve the current or upstream submodule revision"
-            exit 1
-          fi
+          compare_submodule() {
+            local output_name="$1"
+            local path="$2"
+            local label="$3"
+            local submodule_url
+            local submodule_branch
+            local current_sha
+            local latest_sha
 
-          echo "Current plugin compiler: $current_sha"
-          echo "Latest plugin compiler:  $latest_sha"
-          echo "latest=$latest_sha" >> "$GITHUB_OUTPUT"
+            submodule_url="$(git config -f .gitmodules --get "submodule.${path}.url")"
+            submodule_branch="$(git config -f .gitmodules --get "submodule.${path}.branch")"
+            current_sha="$(git ls-tree HEAD "$path" | awk '{print $3}')"
+            latest_sha="$(git ls-remote "$submodule_url" "refs/heads/$submodule_branch" | awk '{print $1}')"
 
-          if [[ "$current_sha" == "$latest_sha" ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+            if [[ -z "$current_sha" || -z "$latest_sha" ]]; then
+              echo "::error::Could not resolve the current or upstream $label revision"
+              exit 1
+            fi
+
+            echo "Current $label: $current_sha"
+            echo "Latest $label:  $latest_sha"
+            echo "${output_name}_latest=$latest_sha" >> "$GITHUB_OUTPUT"
+
+            if [[ "$current_sha" != "$latest_sha" ]]; then
+              changed=true
+            fi
+          }
+
+          compare_submodule plugin tools/plugin-compiler "plugin compiler"
+          compare_submodule lilypond tools/lilypond-wasm "LilyPond editor"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
   build:
     needs: poll_submodule
@@ -60,7 +75,7 @@ jobs:
       (github.event_name != 'schedule' ||
       needs.poll_submodule.outputs.changed == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: write
       pages: write
@@ -71,29 +86,44 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Update plugin compiler
+      - name: Update tool submodules
         if: github.event_name == 'schedule'
         shell: bash
         env:
-          TARGET_SHA: ${{ needs.poll_submodule.outputs.latest }}
+          PLUGIN_TARGET_SHA: ${{ needs.poll_submodule.outputs.plugin_latest }}
+          LILYPOND_TARGET_SHA: ${{ needs.poll_submodule.outputs.lilypond_latest }}
         run: |
           set -euo pipefail
 
-          current_sha="$(git ls-tree HEAD tools/plugin-compiler | awk '{print $3}')"
-          submodule_branch="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.branch)"
+          update_submodule() {
+            local path="$1"
+            local target_sha="$2"
+            local current_sha
+            local submodule_branch
 
-          git -C tools/plugin-compiler fetch --no-tags origin "$submodule_branch"
+            current_sha="$(git ls-tree HEAD "$path" | awk '{print $3}')"
+            submodule_branch="$(git config -f .gitmodules --get "submodule.${path}.branch")"
 
-          if ! git -C tools/plugin-compiler merge-base --is-ancestor "$current_sha" "$TARGET_SHA"; then
-            echo "::error::Refusing a non-fast-forward submodule update"
-            exit 1
-          fi
+            if [[ "$current_sha" == "$target_sha" ]]; then
+              return
+            fi
 
-          git -C tools/plugin-compiler checkout --detach "$TARGET_SHA"
-          git -C tools/plugin-compiler submodule update --init --recursive
+            git -C "$path" fetch --no-tags origin "$submodule_branch"
 
-          if git diff --quiet -- tools/plugin-compiler; then
-            echo "::error::The polled submodule revision did not change the gitlink"
+            if ! git -C "$path" merge-base --is-ancestor "$current_sha" "$target_sha"; then
+              echo "::error::Refusing a non-fast-forward update for $path"
+              exit 1
+            fi
+
+            git -C "$path" checkout --detach "$target_sha"
+            git -C "$path" submodule update --init --recursive
+          }
+
+          update_submodule tools/plugin-compiler "$PLUGIN_TARGET_SHA"
+          update_submodule tools/lilypond-wasm "$LILYPOND_TARGET_SHA"
+
+          if git diff --quiet -- tools/plugin-compiler tools/lilypond-wasm; then
+            echo "::error::The polled revisions did not change a gitlink"
             exit 1
           fi
 
@@ -114,7 +144,7 @@ jobs:
       - name: Build site
         run: bun run build
 
-      - name: Commit plugin compiler update
+      - name: Commit tool submodule updates
         if: github.event_name == 'schedule'
         shell: bash
         run: |
@@ -122,15 +152,23 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- tools/plugin-compiler
+          git add -- tools/plugin-compiler tools/lilypond-wasm
 
           staged_paths="$(git diff --cached --name-only)"
-          if [[ "$staged_paths" != "tools/plugin-compiler" ]]; then
-            echo "::error::Unexpected staged paths: $staged_paths"
+          unexpected_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(tools/plugin-compiler|tools/lilypond-wasm)$' || true)"
+
+          if [[ -z "$staged_paths" ]]; then
+            echo "::error::No submodule updates were staged"
             exit 1
           fi
 
-          git commit -m "chore: update plugin compiler" -- tools/plugin-compiler
+          if [[ -n "$unexpected_paths" ]]; then
+            echo "::error::Unexpected staged paths: $unexpected_paths"
+            exit 1
+          fi
+
+          git commit -m "chore: update tool submodules" -- \
+            tools/plugin-compiler tools/lilypond-wasm
           git push origin HEAD:master
 
       - name: Upload Pages artifact

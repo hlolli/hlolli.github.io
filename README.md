@@ -7,28 +7,30 @@ A small index for browser music tools:
 - `/ftgen-plotter/`
 - `/step-sequencer/`
 
-The homepage and LilyPond workbench use Bun's HTML bundler. The build script
-copies the legacy tool bundles into `dist` without recompiling them.
+The homepage uses Bun's HTML bundler. The build script builds each pinned app
+in its own source tree and copies the legacy tool bundles without rebuilding
+them.
 
-The source tree keeps both legacy apps and the pinned plugin compiler under
+The source tree keeps the legacy apps and two pinned app repositories under
 `tools/`:
 
 ```text
 tools/
 ├── ftgen-plotter/
+├── lilypond-wasm/    Git submodule
 ├── plugin-compiler/  Git submodule
 └── step-sequencer/
 ```
 
-The build keeps their public URLs at `/ftgen-plotter/` and
-`/step-sequencer/`.
+The build keeps the public routes at `/lilypond/`, `/plugin-compiler/`,
+`/ftgen-plotter/`, and `/step-sequencer/`.
 
 ## Local use
 
 Install [Bun 1.3.14](https://bun.sh/) or newer, then run:
 
 ```sh
-git submodule update --init
+git submodule update --init --recursive
 bun install
 bun run dev
 ```
@@ -60,19 +62,21 @@ bun run build
 
 Commit the new `tools/plugin-compiler` pointer after the build passes.
 
-## LilyPond package
+## LilyPond editor
 
-The `/lilypond/` route uses the exact `@hlolli/lilypond-wasm` version in
-`package.json`. Bun installs it with the other site dependencies.
+The `/lilypond/` route builds the editor from the
+[lilypond-wasm](https://github.com/hlolli/lilypond-wasm) Git submodule. The
+editor owns its locked npm packages, tests, browser build, Wasm run-time pack,
+fonts, and licence files.
 
-To update the run-time package:
+To update the pinned editor commit:
 
 ```sh
-bun add --exact @hlolli/lilypond-wasm@0.1.0-alpha.2
+git submodule update --remote tools/lilypond-wasm
+bun run build
 ```
 
-The build packs the package’s LilyPond and Guile run-time files for the browser,
-then copies the Wasm command and its licence tree into the site output.
+Commit the new `tools/lilypond-wasm` pointer after the build passes.
 
 ## Local folder editing
 
@@ -102,8 +106,11 @@ limit.
 ## GitHub Pages
 
 The workflow in `.github/workflows/pages.yml` builds and deploys `dist` after
-each push to `master`. Before its first run, set **Settings → Pages → Build and
-deployment → Source** to **GitHub Actions**.
+each push to `master`. It also checks both app submodules each hour. When an
+upstream `main` branch has a newer fast-forward commit, the workflow tests and
+builds both apps, commits the changed pointer or pointers, and deploys the site.
+Before its first run, set **Settings → Pages → Build and deployment → Source**
+to **GitHub Actions**.
 
 ## FTGen source
 

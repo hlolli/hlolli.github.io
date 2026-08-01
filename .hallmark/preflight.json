@@ -1,20 +1,18 @@
 {
-  "scanned_at": "2026-07-29",
+  "scanned_at": "2026-08-01",
   "font_stack": {
     "site": "Lekton",
-    "lilypond": "Nimbus Sans and Lekton",
     "plotter": "Lekton",
     "sequencer": "Roboto"
   },
   "palette": "Dark green terminal surfaces with warm score paper",
   "motion": "Cut except for functional render progress",
   "spacing": "4pt semantic token scale",
-  "framework": "Vanilla HTML and TypeScript built with Bun; CodeMirror 6; legacy ClojureScript tools copied as-is",
+  "framework": "Vanilla HTML and TypeScript built with Bun; legacy ClojureScript tools copied as-is; child apps built from pinned submodules",
   "preserve": [
     "Legacy FTGen plotter assets",
     "Legacy step sequencer assets",
     "Dark, sparse visual character",
-    "Local Lekton font",
-    "LilyPond Workbench 30/70 editor and preview split"
+    "Local Lekton font"
   ]
 }

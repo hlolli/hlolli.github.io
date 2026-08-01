@@ -4,26 +4,98 @@ on:
   push:
     branches:
       - master
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: github-pages
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
+  poll_submodule:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.compare.outputs.changed }}
+      latest: ${{ steps.compare.outputs.latest }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Compare plugin compiler revisions
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          submodule_url="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.url)"
+          submodule_branch="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.branch)"
+          current_sha="$(git ls-tree HEAD tools/plugin-compiler | awk '{print $3}')"
+          latest_sha="$(git ls-remote "$submodule_url" "refs/heads/$submodule_branch" | awk '{print $1}')"
+
+          if [[ -z "$current_sha" || -z "$latest_sha" ]]; then
+            echo "::error::Could not resolve the current or upstream submodule revision"
+            exit 1
+          fi
+
+          echo "Current plugin compiler: $current_sha"
+          echo "Latest plugin compiler:  $latest_sha"
+          echo "latest=$latest_sha" >> "$GITHUB_OUTPUT"
+
+          if [[ "$current_sha" == "$latest_sha" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: poll_submodule
+    if: >-
+      always() &&
+      (github.event_name != 'schedule' ||
+      needs.poll_submodule.outputs.changed == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+
+      - name: Update plugin compiler
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.poll_submodule.outputs.latest }}
+        run: |
+          set -euo pipefail
+
+          current_sha="$(git ls-tree HEAD tools/plugin-compiler | awk '{print $3}')"
+          submodule_branch="$(git config -f .gitmodules --get submodule.tools/plugin-compiler.branch)"
+
+          git -C tools/plugin-compiler fetch --no-tags origin "$submodule_branch"
+
+          if ! git -C tools/plugin-compiler merge-base --is-ancestor "$current_sha" "$TARGET_SHA"; then
+            echo "::error::Refusing a non-fast-forward submodule update"
+            exit 1
+          fi
+
+          git -C tools/plugin-compiler checkout --detach "$TARGET_SHA"
+          git -C tools/plugin-compiler submodule update --init --recursive
+
+          if git diff --quiet -- tools/plugin-compiler; then
+            echo "::error::The polled submodule revision did not change the gitlink"
+            exit 1
+          fi
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2.2.0
@@ -42,6 +114,25 @@ jobs:
       - name: Build site
         run: bun run build
 
+      - name: Commit plugin compiler update
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- tools/plugin-compiler
+
+          staged_paths="$(git diff --cached --name-only)"
+          if [[ "$staged_paths" != "tools/plugin-compiler" ]]; then
+            echo "::error::Unexpected staged paths: $staged_paths"
+            exit 1
+          fi
+
+          git commit -m "chore: update plugin compiler" -- tools/plugin-compiler
+          git push origin HEAD:master
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5.0.0
         with:
@@ -51,6 +142,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

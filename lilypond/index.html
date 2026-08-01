@@ -81,20 +81,6 @@
               <h1 id="source-heading">LilyPond source</h1>
               <p id="render-hint">Render with <kbd>⌘</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd></p>
             </div>
-            <div class="editor-file-action">
-              <p class="file-name" id="active-file-name">main.ly</p>
-              <button
-                class="action-button action-button--save save-button"
-                id="save-file"
-                type="button"
-                data-state="idle"
-                hidden
-              >
-                Save file
-              </button>
-            </div>
-          </header>
-          <div class="workspace-editor" id="workspace-editor" data-mode="scratchpad">
             <div
               class="workspace-view-tabs"
               id="workspace-view-tabs"
@@ -125,7 +111,20 @@
                 Files
               </button>
             </div>
-
+            <div class="editor-file-action">
+              <p class="file-name" id="active-file-name">main.ly</p>
+              <button
+                class="action-button action-button--save save-button"
+                id="save-file"
+                type="button"
+                data-state="idle"
+                hidden
+              >
+                Save file
+              </button>
+            </div>
+          </header>
+          <div class="workspace-editor" id="workspace-editor" data-mode="scratchpad">
             <section
               class="workspace-editor__view workspace-editor__view--editor"
               id="workspace-editor-view"

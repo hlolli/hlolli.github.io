@@ -2,6 +2,7 @@
 
 A small index for browser music tools:
 
+- `/naviergrain/`
 - `/lilypond/`
 - `/plugin-compiler/`
 - `/ftgen-plotter/`
@@ -11,18 +12,19 @@ The homepage uses Bun's HTML bundler. The build script builds each pinned app
 in its own source tree and copies the legacy tool bundles without rebuilding
 them.
 
-The source tree keeps the legacy apps and two pinned app repositories under
+The source tree keeps the legacy apps and three pinned app repositories under
 `tools/`:
 
 ```text
 tools/
 ├── ftgen-plotter/
 ├── lilypond-wasm/    Git submodule
+├── naviergrain/      Git submodule
 ├── plugin-compiler/  Git submodule
 └── step-sequencer/
 ```
 
-The build keeps the public routes at `/lilypond/`, `/plugin-compiler/`,
+The build keeps the public routes at `/naviergrain/`, `/lilypond/`, `/plugin-compiler/`,
 `/ftgen-plotter/`, and `/step-sequencer/`.
 
 ## Local use
@@ -43,6 +45,17 @@ For a release build:
 bun run build
 bun run preview
 ```
+
+## naviergrain
+
+The naviergrain app builds from `tools/naviergrain` into `/naviergrain/`.
+It needs Python 3 and a WASI SDK. The build downloads and checks WASI SDK 33
+on Apple Silicon macOS or x86_64 Linux. Set `WASI_SDK_PATH` to use your own SDK.
+The output includes the GPL license, copyright notice and a source archive
+from the pinned commit. Video scores and render tools are excluded upstream.
+
+Update it with `git submodule update --remote tools/naviergrain`, then build
+and commit the new pointer.
 
 ## Csound plugin compiler
 
@@ -106,9 +119,9 @@ limit.
 ## GitHub Pages
 
 The workflow in `.github/workflows/pages.yml` builds and deploys `dist` after
-each push to `master`. It also checks both app submodules each hour. When an
+each push to `master`. It also checks all three app submodules each hour. When an
 upstream `main` branch has a newer fast-forward commit, the workflow tests and
-builds both apps, commits the changed pointer or pointers, and deploys the site.
+builds the apps, commits the changed pointer or pointers, and deploys the site.
 Before its first run, set **Settings → Pages → Build and deployment → Source**
 to **GitHub Actions**.
 

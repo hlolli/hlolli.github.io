@@ -24,6 +24,7 @@ jobs:
       changed: ${{ steps.compare.outputs.changed }}
       plugin_latest: ${{ steps.compare.outputs.plugin_latest }}
       lilypond_latest: ${{ steps.compare.outputs.lilypond_latest }}
+      naviergrain_latest: ${{ steps.compare.outputs.naviergrain_latest }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
@@ -66,6 +67,7 @@ jobs:
 
           compare_submodule plugin tools/plugin-compiler "plugin compiler"
           compare_submodule lilypond tools/lilypond-wasm "LilyPond editor"
+          compare_submodule naviergrain tools/naviergrain "naviergrain"
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
   build:
@@ -94,6 +96,7 @@ jobs:
         env:
           PLUGIN_TARGET_SHA: ${{ needs.poll_submodule.outputs.plugin_latest }}
           LILYPOND_TARGET_SHA: ${{ needs.poll_submodule.outputs.lilypond_latest }}
+          NAVIERGRAIN_TARGET_SHA: ${{ needs.poll_submodule.outputs.naviergrain_latest }}
         run: |
           set -euo pipefail
 
@@ -127,8 +130,9 @@ jobs:
 
           update_submodule tools/plugin-compiler "$PLUGIN_TARGET_SHA"
           update_submodule tools/lilypond-wasm "$LILYPOND_TARGET_SHA"
+          update_submodule tools/naviergrain "$NAVIERGRAIN_TARGET_SHA"
 
-          if git diff --quiet -- tools/plugin-compiler tools/lilypond-wasm; then
+          if git diff --quiet -- tools/plugin-compiler tools/lilypond-wasm tools/naviergrain; then
             echo "::error::The polled revisions did not change a gitlink"
             exit 1
           fi
@@ -158,10 +162,10 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- tools/plugin-compiler tools/lilypond-wasm
+          git add -- tools/plugin-compiler tools/lilypond-wasm tools/naviergrain
 
           staged_paths="$(git diff --cached --name-only)"
-          unexpected_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(tools/plugin-compiler|tools/lilypond-wasm)$' || true)"
+          unexpected_paths="$(printf '%s\n' "$staged_paths" | grep -Ev '^(tools/plugin-compiler|tools/lilypond-wasm|tools/naviergrain)$' || true)"
 
           if [[ -z "$staged_paths" ]]; then
             echo "::error::No submodule updates were staged"
@@ -174,7 +178,7 @@ jobs:
           fi
 
           git commit -m "chore: update tool submodules" -- \
-            tools/plugin-compiler tools/lilypond-wasm
+            tools/plugin-compiler tools/lilypond-wasm tools/naviergrain
           git push origin HEAD:master
 
       - name: Upload Pages artifact

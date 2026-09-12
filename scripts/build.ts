@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 const projectRoot = resolve(import.meta.dir, "..");
 const outputRoot = resolve(projectRoot, "dist");
 const pluginCompilerRoot = resolve(projectRoot, "tools/plugin-compiler");
+const naviergrainRoot = resolve(projectRoot, "tools/naviergrain");
 const lilypondEditorRoot = resolve(
   projectRoot,
   "tools/lilypond-wasm/editor",
@@ -104,6 +105,34 @@ async function buildLilypondEditor() {
   console.log("Built LilyPond editor at /lilypond/");
 }
 
+async function buildNaviergrain() {
+  if (!(await Bun.file(resolve(naviergrainRoot, "tools/build_live_wasm.py")).exists())) {
+    throw new Error("naviergrain source is missing. Run git submodule update --init.");
+  }
+
+  if (!Bun.env.WASI_SDK_PATH) {
+    await run(["bash", "scripts/install-wasi-sdk.sh"], projectRoot);
+  }
+  const sdk = Bun.env.WASI_SDK_PATH ?? resolve(projectRoot, ".local-packages/wasi-sdk-33.0");
+  const destination = resolve(outputRoot, "naviergrain");
+  await run([
+    "python3", "tools/build_live_wasm.py",
+    "--cc", resolve(sdk, "bin/clang"),
+    "--ld", resolve(sdk, "bin/wasm-ld"),
+    "--output", destination,
+  ], naviergrainRoot);
+  await run(["node", "tests/test_live_worklet.mjs"], naviergrainRoot);
+  await run(["node", "tests/test_spectrogram.mjs"], naviergrainRoot);
+  await run([
+    "node", "scripts/test-naviergrain.mjs", destination,
+  ], projectRoot);
+  await run([
+    "git", "archive", "--format=zip", "--prefix=naviergrain/",
+    "--output", resolve(destination, "source.zip"), "HEAD",
+  ], naviergrainRoot);
+  console.log("Built naviergrain at /naviergrain/");
+}
+
 await rm(outputRoot, { recursive: true, force: true });
 
 const result = await Bun.build({
@@ -135,6 +164,7 @@ await Promise.all([
   ),
   buildLilypondEditor(),
   buildPluginCompiler(),
+  buildNaviergrain(),
 ]);
 
 console.log(`Built ${outputRoot}`);

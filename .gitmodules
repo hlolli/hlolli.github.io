@@ -6,3 +6,7 @@
 	path = tools/lilypond-wasm
 	url = https://github.com/hlolli/lilypond-wasm.git
 	branch = main
+[submodule "tools/naviergrain"]
+	path = tools/naviergrain
+	url = https://github.com/hlolli/naviergrain.git
+	branch = main

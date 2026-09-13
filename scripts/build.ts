@@ -125,7 +125,10 @@ async function buildNaviergrain() {
   await run(["node", "tests/test_spectrogram.mjs"], naviergrainRoot);
   await run(["node", "tests/test_particle_view.mjs"], naviergrainRoot);
   await run([
-    "node", "tests/test_trails_wasm.mjs", resolve(destination, "fluidgrain-live.wasm"),
+    "node", "tests/test_trails_wasm.mjs", resolve(destination, "naviergrain-live.wasm"),
+  ], naviergrainRoot);
+  await run([
+    "node", "tests/test_live_controls.mjs", resolve(destination, "naviergrain-live.wasm"),
   ], naviergrainRoot);
   await run([
     "node", "scripts/test-naviergrain.mjs", destination,

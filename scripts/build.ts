@@ -143,7 +143,9 @@ async function buildNaviergrain() {
 await rm(outputRoot, { recursive: true, force: true });
 
 const result = await Bun.build({
-  entrypoints: [resolve(projectRoot, "index.html")],
+  entrypoints: ["index.html", "music/index.html", "bio/index.html"].map(
+    (page) => resolve(projectRoot, page),
+  ),
   outdir: outputRoot,
   root: projectRoot,
   minify: true,
@@ -163,6 +165,8 @@ if (!result.success) {
 }
 
 await Promise.all([
+  copyProjectFile("assets/fonts/ibm-plex-sans-OFL.txt", "assets/fonts/ibm-plex-sans-OFL.txt"),
+  copyProjectFile("assets/fonts/lekton-OFL.txt", "assets/fonts/lekton-OFL.txt"),
   copyProjectTree("tools/ftgen-plotter", "ftgen-plotter"),
   copyProjectTree("tools/step-sequencer", "step-sequencer"),
   copyProjectFile(

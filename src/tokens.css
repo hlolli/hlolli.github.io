@@ -1,66 +1,57 @@
-/* Hallmark · token set: Terminal · paper band: dark · display style: mono · accent hue: phosphor green */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../assets/fonts/ibm-plex-sans-regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../assets/fonts/ibm-plex-sans-bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Lekton";
-  src: url("../assets/fonts/lekton.regular.ttf") format("truetype");
+  src: url("../assets/fonts/lekton-regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
   font-display: swap;
 }
 
 :root {
-  --color-paper: oklch(11% 0.018 145);
-  --color-paper-2: oklch(15% 0.022 145);
-  --color-paper-3: oklch(19% 0.024 145);
-  --color-rule: oklch(28% 0.03 140);
-  --color-rule-2: oklch(40% 0.05 140);
-  --color-muted: oklch(58% 0.09 140);
-  --color-neutral: oklch(68% 0.12 140);
-  --color-ink-2: oklch(78% 0.14 138);
-  --color-ink: oklch(86% 0.16 138);
-  --color-accent: oklch(78% 0.19 138);
-  --color-accent-ink: oklch(11% 0.018 145);
-  --color-focus: oklch(86% 0.19 138);
+  color-scheme: light dark;
+  --color-paper: #f8f9f8;
+  --color-ink: #202722;
+  --color-body: #4b554f;
+  --color-muted: #59635d;
+  --color-rule: #d8ded9;
+  --color-accent: #356b49;
+  --color-selection: #d3e6d8;
 
-  --font-display: "Lekton", "IBM Plex Mono", ui-monospace, monospace;
-  --font-body: "Lekton", "IBM Plex Mono", ui-monospace, monospace;
-
-  --weight-regular: 400;
-
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 1.875rem;
-
-  --lh-tight: 1.2;
-  --lh-snug: 1.35;
-  --lh-normal: 1.55;
-
-  --tracking-display: 0.01em;
-
-  --space-2xs: 0.25rem;
-  --space-xs: 0.5rem;
-  --space-sm: 0.75rem;
-  --space-md: 1rem;
-  --space-lg: 1.5rem;
-  --space-xl: 2.5rem;
-  --space-2xl: 4rem;
-  --space-3xl: 6rem;
-  --space-4xl: 9rem;
-
-  --page-max: 72rem;
-  --page-gutter: clamp(1rem, 4vw, 3rem);
-  --measure: 62ch;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-brand: "Lekton", ui-monospace, monospace;
+  --text-small: 0.875rem;
+  --text-body: 1rem;
+  --text-project: 1.375rem;
+  --text-title: clamp(2rem, 1.35rem + 2vw, 2.75rem);
+  --page-max: 68rem;
+  --page-gutter: clamp(1.25rem, 4vw, 3rem);
+  --measure: 58ch;
   --target-touch: 2.75rem;
+}
 
-  --rule-hair: 1px;
-  --rule-focus: 2px;
-  --radius-focus: 0;
-
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-micro: 120ms;
-  --dur-short: 220ms;
-  --dur-long: 420ms;
-  --dur-caret: 1.05s;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper: #141916;
+    --color-ink: #edf1ee;
+    --color-body: #bac4bd;
+    --color-muted: #9eaaa2;
+    --color-rule: #323c35;
+    --color-accent: #a3c9ad;
+    --color-selection: #304c39;
+  }
 }

@@ -39,6 +39,21 @@ bun run dev
 
 The site opens at `http://127.0.0.1:3000/`.
 
+## Homepage
+
+Edit `index.html` to add projects. Music and Bio have placeholder pages at
+`music/index.html` and `bio/index.html`. All three pages share the main menu.
+Shared colors and type sizes live in `src/tokens.css`, and the layout lives in
+`src/home.css`.
+
+The intro uses a WebGL spectrum in `src/spectrum-study.js`. Its harmonic peaks
+form a short animated history. This is a drawing, not a live audio measurement.
+It stops drawing offscreen and uses a still canvas when WebGL is unavailable
+or the visitor requests reduced motion. Both themes follow the system setting.
+The site hosts its fonts locally and includes their SIL Open Font Licenses.
+
+## Release build
+
 For a release build:
 
 ```sh

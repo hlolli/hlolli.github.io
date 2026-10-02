@@ -4,96 +4,108 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="description" content="Small browser music tools by Hlöðver Sigurðsson.">
-    <meta name="color-scheme" content="dark">
-    <title>Hlöðver Sigurðsson · Csound tools</title>
+    <meta name="color-scheme" content="light dark">
+    <title>Hlöðver Sigurðsson: Csound tools</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg">
     <link rel="stylesheet" href="./src/home.css">
   </head>
   <body>
-    <header class="nav-term" aria-label="Site">
-      <p class="nav-term__line">
-        <span class="nav-term__prompt" aria-hidden="true">&gt;</span>
-        <span>hlolli</span>
-        <a class="nav-term__link" href="#tools">--tools</a>
-        <span class="nav-term__caret" aria-hidden="true">▮</span>
-      </p>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="site-header__inner">
+        <span class="wordmark">hlolli</span>
+        <nav aria-label="Site">
+          <a href="/" aria-current="page">Music tools</a>
+          <a href="/music/">Music</a>
+          <a href="/bio/">Bio</a>
+        </nav>
+      </div>
     </header>
 
-    <main class="shell">
+    <main class="shell" id="main">
       <header class="intro">
-        <h1>Music tools for the browser.</h1>
-        <p>Experiments in sound, notation, and fluid motion.</p>
+        <div class="intro__copy">
+          <h1>Music tools for the browser.</h1>
+          <p>Experiments with sound.</p>
+        </div>
+        <div class="spectrum-study">
+          <div class="spectrum-study__art" aria-hidden="true">
+            <canvas class="spectrum-study__still"></canvas>
+            <canvas class="spectrum-study__motion"></canvas>
+          </div>
+        </div>
       </header>
 
-      <section class="tool-index" id="tools" aria-label="Tools">
+      <section class="tool-index" id="tools" aria-labelledby="tools-heading">
+        <h2 class="section-title" id="tools-heading">Projects</h2>
         <article class="tool">
+          <time class="tool__date" datetime="2026-09">September 2026</time>
           <div class="tool__body">
-            <time class="tool__date" datetime="2026-09">September 2026</time>
-            <h2>
+            <h3>
               <a class="tool__link" href="/naviergrain/">
                 naviergrain <span aria-hidden="true">→</span>
               </a>
-            </h2>
+            </h3>
             <p>Move particles through a fluid field and hear their motion as cosine grains.</p>
           </div>
-          <p class="tool__status"><a class="nav-term__link" href="/naviergrain/source.zip">source</a></p>
+          <a class="tool__source" href="/naviergrain/source.zip" aria-label="Download naviergrain source">Source</a>
         </article>
 
         <article class="tool">
+          <time class="tool__date" datetime="2026-07">July 2026</time>
           <div class="tool__body">
-            <time class="tool__date" datetime="2026-07">July 2026</time>
-            <h2>
+            <h3>
               <a class="tool__link" href="/lilypond/">
                 LilyPond WASM <span aria-hidden="true">→</span>
               </a>
-            </h2>
+            </h3>
             <p>Edit LilyPond source and render an SVG score with a local WASI package.</p>
           </div>
-          <p class="tool__status">local preview</p>
         </article>
 
         <article class="tool">
+          <time class="tool__date" datetime="2026-07">July 2026</time>
           <div class="tool__body">
-            <time class="tool__date" datetime="2026-07">July 2026</time>
-            <h2>
+            <h3>
               <a class="tool__link" href="/plugin-compiler/">
                 OPCODE.WASM <span aria-hidden="true">→</span>
               </a>
-            </h2>
+            </h3>
             <p>Build, run, and export C or C++ Csound opcode plugins in the browser.</p>
           </div>
-          <p class="tool__status">Csound plugin compiler</p>
         </article>
 
         <article class="tool">
+          <time class="tool__date" datetime="2018-09">September 2018</time>
           <div class="tool__body">
-            <time class="tool__date" datetime="2018-09">September 2018</time>
-            <h2>
+            <h3>
               <a class="tool__link" href="/ftgen-plotter/">
                 FTGen plotter <span aria-hidden="true">→</span>
               </a>
-            </h2>
+            </h3>
             <p>Plot and inspect Csound function tables in the browser.</p>
           </div>
-          <p class="tool__status">browser tool</p>
         </article>
 
         <article class="tool">
+          <time class="tool__date" datetime="2016-08">August 2016</time>
           <div class="tool__body">
-            <time class="tool__date" datetime="2016-08">August 2016</time>
-            <h2>
+            <h3>
               <a class="tool__link" href="/step-sequencer/">
                 Step sequencer <span aria-hidden="true">→</span>
               </a>
-            </h2>
+            </h3>
             <p>A compact Csound sequencer built around the old PNaCl browser runtime.</p>
           </div>
-          <p class="tool__status">archive</p>
+          <p class="tool__status">Archive</p>
         </article>
       </section>
     </main>
 
-    <footer class="foot-line">
-      <p>Hlöðver Sigurðsson · Browser music tools · 2026</p>
+    <footer class="site-footer">
+      <p>Hlöðver Sigurðsson</p>
+      <p>2026</p>
     </footer>
+    <script type="module" src="./src/spectrum-study.js"></script>
   </body>
 </html>
